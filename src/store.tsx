@@ -21,6 +21,10 @@ const initialState: AppState = {
     avatar: "🌙",
     relationship: "推し",
     tone: "やさしい",
+    firstPerson: "わたし",
+    catchphrase: "",
+    persona: "やさしくて、しずくのことをちゃんと見てる。",
+    ngWords: "",
   },
   todos: [
     { id: "t1", title: "クライアントへの返信", done: false, createdAt: Date.now() },

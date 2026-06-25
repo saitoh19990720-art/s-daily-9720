@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "../store";
 import { Screen, TopBar, Card, SectionTitle } from "../components/ui";
+import { Avatar } from "../components/Avatar";
 import { oshiGreeting } from "../lib/oshi";
 import type { ScreenId } from "../types";
 
@@ -29,9 +30,7 @@ export function Home({ go }: { go: (s: ScreenId) => void }) {
       {/* 推しカード */}
       <Card className="bg-gradient-to-br from-accent-soft to-card" onClick={() => go("chat")}>
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-card text-[24px] shadow-soft">
-            {oshi.avatar}
-          </div>
+          <Avatar value={oshi.avatar} size={48} square className="shadow-soft" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold text-muted">{oshi.name} — 今日のひとこと</p>
             <p className="mt-1 truncate font-mincho text-[15px] font-medium text-ink">「{greet}」</p>

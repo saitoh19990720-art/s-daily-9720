@@ -12,6 +12,11 @@ export interface OshiConfig {
   avatar: string; // 絵文字 or dataURL
   relationship: Relationship;
   tone: Tone;
+  // キャラの“素の設定”（ユーザーがカスタマイズ）
+  firstPerson: string; // 一人称（例：わたし／俺／僕）
+  catchphrase: string; // 口癖（例：〜だね）
+  persona: string; // 性格・キャラ設定（自由記述）
+  ngWords: string; // 使わない言葉（NGワード・カンマ区切り）
 }
 
 export interface Todo {

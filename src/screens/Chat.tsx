@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
+import { Avatar } from "../components/Avatar";
 
 export function Chat() {
   const { s, sendMessage, acceptSuggestion, skipSuggestion } = useStore();
@@ -21,9 +22,7 @@ export function Chat() {
     <div className="flex h-full flex-col">
       {/* ヘッダー */}
       <div className="flex items-center gap-3 border-b border-line px-5 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-[18px]">
-          {oshi.avatar}
-        </div>
+        <Avatar value={oshi.avatar} size={36} />
         <div>
           <p className="text-[15px] font-bold text-ink">{oshi.name}</p>
           <p className="text-[11px] font-bold text-accent">● オンライン</p>
@@ -51,7 +50,7 @@ export function Chat() {
           ) : (
             <div key={m.id} className="flex flex-col gap-2">
               <div className="flex items-start gap-2">
-                <span className="mt-0.5 text-[18px]">{oshi.avatar}</span>
+                <Avatar value={oshi.avatar} size={26} className="mt-0.5" />
                 <div className="max-w-[78%] rounded-2xl rounded-tl-md bg-surface px-3.5 py-2.5 text-[14px] leading-relaxed text-ink">
                   {m.text}
                 </div>
