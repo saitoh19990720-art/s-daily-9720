@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppState, DailyLog, OmamoriMode, Pain, PlanId, Theme, Todo } from "./types";
+import type { AppState, DailyLog, OmamoriMode, Pain, PricingPlanId, Theme, Todo } from "./types";
 import { oshiReply } from "./lib/oshi";
 import { todayKey, diffDays, timeOfDay } from "./lib/date";
 
@@ -36,7 +36,7 @@ const initialState: AppState = {
     { id: "t2", title: "Figmaのワイヤー作業", done: true, createdAt: Date.now() },
   ],
   memos: [{ id: "m1", title: "気になったコスメ情報", date: "05/01" }],
-  plans: [{ id: "p1", text: "明日の予定確認", when: "近日中" }],
+  schedules: [{ id: "s1", text: "明日の予定確認", time: null, cat: "task", date: "" }],
   chat: [],
   health: { cycleStartDate: null, periods: [], logs: {} },
   notifications: { dailyCheckin: true, todoReminder: true, cycleAlert: false },
@@ -89,7 +89,7 @@ export interface Store {
   setPain: (dateKey: string, p: Pain) => void;
   toggleSymptom: (dateKey: string, sym: string) => void;
   // プラン・設定
-  setPlan: (p: PlanId) => void;
+  setPlan: (p: PricingPlanId) => void;
   setOmamoriMode: (m: OmamoriMode) => void;
   updateOshi: (patch: Partial<AppState["oshi"]>) => void;
   setNotification: (k: keyof AppState["notifications"], v: boolean) => void;

@@ -1,9 +1,9 @@
 import { useStore } from "../store";
 import { Screen, TopBar, Card } from "../components/ui";
-import type { PlanId } from "../types";
+import type { PricingPlanId } from "../types";
 
 const PLANS: {
-  id: PlanId;
+  id: PricingPlanId;
   emoji: string;
   name: string;
   price: string;

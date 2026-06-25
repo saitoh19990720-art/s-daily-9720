@@ -4,7 +4,7 @@ export type Theme = "light" | "dark";
 export type Relationship = "推し" | "相棒" | "恋人未満" | "友達";
 // 性格タグ（無料＋お守りプラン）。自由に増やせるよう string。
 export type Tone = string;
-export type PlanId = "free" | "health" | "omamori";
+export type PricingPlanId = "free" | "health" | "omamori";
 export type ScreenId = "home" | "chat" | "todo" | "health" | "plan" | "settings" | "memo";
 
 export interface OshiConfig {
@@ -36,10 +36,14 @@ export interface Memo {
   date: string; // MM/DD
 }
 
-export interface PlanItem {
+// 予定（課金プランPricingPlanとは別物・仕様§9）
+export type ScheduleCat = "task" | "fun" | "care" | "rest";
+export interface ScheduleItem {
   id: string;
   text: string;
-  when: string;
+  time: string | null; // HH:MM
+  cat: ScheduleCat;
+  date: string; // YYYY-MM-DD（空可）
 }
 
 export interface ChatMsg {
@@ -82,12 +86,12 @@ export type OmamoriMode = "auto" | "on" | "off";
 export interface AppState {
   onboarded: boolean;
   theme: Theme;
-  plan: PlanId;
+  plan: PricingPlanId; // 課金プラン
   omamoriMode: OmamoriMode; // お守りモード（自動＝生理/夜/つらい日に発動）
   oshi: OshiConfig;
   todos: Todo[];
   memos: Memo[];
-  plans: PlanItem[];
+  schedules: ScheduleItem[];
   chat: ChatMsg[];
   health: HealthState;
   notifications: Notifications;

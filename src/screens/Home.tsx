@@ -5,6 +5,8 @@ import { Avatar } from "../components/Avatar";
 import { oshiGreeting } from "../lib/oshi";
 import type { ScreenId } from "../types";
 
+const CAT_ICON: Record<string, string> = { task: "📋", fun: "🎉", care: "🏥", rest: "💤" };
+
 function todayLabel(): string {
   const d = new Date();
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -16,7 +18,7 @@ function todayLabel(): string {
 
 export function Home({ go }: { go: (s: ScreenId) => void }) {
   const { s, toggleTodo, addTodo } = useStore();
-  const { oshi, todos, memos, plans } = s;
+  const { oshi, todos, memos, schedules } = s;
   const omamori = isOmamoriActive(s);
   const [quick, setQuick] = useState("");
   const addQuick = () => {
@@ -125,9 +127,11 @@ export function Home({ go }: { go: (s: ScreenId) => void }) {
       {/* 近日の予定 */}
       <SectionTitle>🗓 近日の予定</SectionTitle>
       <Card className="flex items-center gap-3">
-        <span className="h-2 w-2 rounded-full bg-accent" />
-        <p className="flex-1 text-[14px] font-medium text-ink">{plans[0]?.text ?? "予定はまだないよ"}</p>
-        <span className="text-[12px] text-muted">{plans[0]?.when ?? ""}</span>
+        <span className="text-[16px]">{schedules[0] ? CAT_ICON[schedules[0].cat] : "🗓"}</span>
+        <p className="flex-1 text-[14px] font-medium text-ink">
+          {schedules[0]?.text ?? "予定はまだないよ"}
+        </p>
+        <span className="text-[12px] text-muted">{schedules[0]?.time ?? ""}</span>
       </Card>
     </Screen>
   );
