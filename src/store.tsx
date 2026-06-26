@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { AppState, DailyLog, OmamoriMode, Pain, PricingPlanId, Theme, Todo } from "./types";
 import { oshiReply } from "./lib/oshi";
+import { detectCandidate } from "./lib/extract";
 import { todayKey, diffDays, timeOfDay } from "./lib/date";
 
 const KEY = "oshi-life-os:v1";
@@ -23,6 +24,9 @@ const initialState: AppState = {
     avatar: "🌙",
     relationship: "推し",
     tone: "やさしい",
+    mode: "oshi",
+    second: "きみ",
+    banned: "",
     firstPerson: "わたし",
     catchphrase: "",
     persona: "やさしくて、しずくのことをちゃんと見てる。",
@@ -77,8 +81,8 @@ export interface Store {
   deleteTodo: (id: string) => void;
   // チャット（芯）
   sendMessage: (text: string) => void;
-  acceptSuggestion: (msgId: string) => void;
-  skipSuggestion: (msgId: string) => void;
+  acceptCandidate: (msgId: string) => void;
+  skipCandidate: (msgId: string) => void;
   // メモ
   addMemo: (text: string) => void;
   deleteMemo: (id: string) => void;
@@ -148,38 +152,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const clean = text.trim();
           if (!clean) return d;
           const seed = d.chat.length;
-          const { reply, suggestion } = oshiReply(clean, d.oshi, seed, isOmamoriActive(d));
+          const reply = oshiReply(clean, d.oshi, seed, isOmamoriActive(d));
+          const candidate = detectCandidate(clean) ?? undefined;
           const mine = { id: uid(), role: "me" as const, text: clean, ts: Date.now() };
           const theirs = {
             id: uid(),
             role: "oshi" as const,
             text: reply,
             ts: Date.now(),
-            suggestion: suggestion ?? undefined,
-            suggestionResolved: false,
+            candidate,
+            candidateResolved: false,
           };
           return { ...d, chat: [...d.chat, mine, theirs] };
         }),
-      acceptSuggestion: (msgId) =>
+      acceptCandidate: (msgId) =>
         patch((d) => {
           const msg = d.chat.find((m) => m.id === msgId);
-          if (!msg?.suggestion) return d;
-          const todo: Todo = {
-            id: uid(),
-            title: msg.suggestion,
-            done: false,
-            createdAt: Date.now(),
-          };
+          const c = msg?.candidate;
+          if (!c) return d;
+          const chat = d.chat.map((m) => (m.id === msgId ? { ...m, candidateResolved: true } : m));
+          if (c.kind === "todo") {
+            const todo: Todo = { id: uid(), title: c.text, done: false, createdAt: Date.now() };
+            return { ...d, todos: [todo, ...d.todos], chat };
+          }
+          if (c.kind === "memo") {
+            const now = new Date();
+            const date = `${`${now.getMonth() + 1}`.padStart(2, "0")}/${`${now.getDate()}`.padStart(2, "0")}`;
+            return { ...d, memos: [{ id: uid(), title: c.text, date }, ...d.memos], chat };
+          }
+          if (c.kind === "schedule") {
+            return {
+              ...d,
+              schedules: [
+                { id: uid(), text: c.text, time: null, cat: "task" as const, date: "" },
+                ...d.schedules,
+              ],
+              chat,
+            };
+          }
+          // health：今日のログに症状を追加
+          const key = todayKey();
+          const cur = d.health.logs[key] ?? { mood: null, pain: null, symptoms: [] };
+          const symptoms = cur.symptoms.includes(c.text) ? cur.symptoms : [...cur.symptoms, c.text];
           return {
             ...d,
-            todos: [todo, ...d.todos],
-            chat: d.chat.map((m) => (m.id === msgId ? { ...m, suggestionResolved: true } : m)),
+            health: { ...d.health, logs: { ...d.health.logs, [key]: { ...cur, symptoms } } },
+            chat,
           };
         }),
-      skipSuggestion: (msgId) =>
+      skipCandidate: (msgId) =>
         patch((d) => ({
           ...d,
-          chat: d.chat.map((m) => (m.id === msgId ? { ...m, suggestionResolved: true } : m)),
+          chat: d.chat.map((m) => (m.id === msgId ? { ...m, candidateResolved: true } : m)),
         })),
 
       addMemo: (text) =>

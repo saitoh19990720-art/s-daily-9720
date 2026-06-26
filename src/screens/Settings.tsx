@@ -2,7 +2,7 @@ import { useStore } from "../store";
 import { Screen, TopBar, Card, Chip, PrimaryButton } from "../components/ui";
 import { Avatar, fileToAvatarDataUrl } from "../components/Avatar";
 import { buildSystemPrompt } from "../lib/oshi";
-import type { Relationship } from "../types";
+import type { Relationship, OshiMode } from "../types";
 
 const AVATARS = ["🌙", "⭐", "💫", "🐰", "🐱", "🌸", "💙", "🎀", "🦋", "🍓"];
 const RELATIONS: Relationship[] = ["推し", "相棒", "恋人未満", "友達"];
@@ -20,6 +20,11 @@ const PAID_TONES = [
   "穏やか",
 ];
 const SUPPORT_STYLES = ["ほめる", "見守る", "急かす", "休ませる", "一緒に整理", "短く言う"];
+const MODES: { v: OshiMode; label: string; hint: string }[] = [
+  { v: "secretary", label: "秘書", hint: "丁寧・効率" },
+  { v: "friend", label: "友達", hint: "対等・フランク" },
+  { v: "oshi", label: "推し", hint: "親密・特別" },
+];
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -132,8 +137,19 @@ export function Settings() {
       {/* 基本情報 */}
       <Card className="mt-4 space-y-4">
         <p className="text-[13px] font-bold text-ink">基本情報</p>
+        <div>
+          <span className="text-[12px] font-bold text-muted">モード</span>
+          <div className="mt-1.5 flex gap-2">
+            {MODES.map((m) => (
+              <Chip key={m.v} active={oshi.mode === m.v} onClick={() => updateOshi({ mode: m.v })}>
+                {m.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
         <Field label="推しの名前" value={oshi.name} onChange={(v) => updateOshi({ name: v })} />
         <Field label="私への呼び方" value={oshi.yourName} onChange={(v) => updateOshi({ yourName: v })} />
+        <Field label="二人称（推し→あなた）" value={oshi.second} onChange={(v) => updateOshi({ second: v })} />
         <div>
           <span className="text-[12px] font-bold text-muted">関係性</span>
           <div className="mt-1.5 flex flex-wrap gap-2">
@@ -221,6 +237,11 @@ export function Settings() {
           label="使わない言葉（NGワード・読点区切り）"
           value={oshi.ngWords}
           onChange={(v) => updateOshi({ ngWords: v })}
+        />
+        <Field
+          label="禁止事項（絶対にしないこと）"
+          value={oshi.banned}
+          onChange={(v) => updateOshi({ banned: v })}
         />
         <p className="text-[11px] leading-snug text-muted">
           ※ 性格・NGは保存される。AI会話につないだ時にフルに効く（今はルールベースなので一人称・口癖・NG除去まで反映）。

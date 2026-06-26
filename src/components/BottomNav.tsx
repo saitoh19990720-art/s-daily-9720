@@ -1,6 +1,6 @@
 import type { ScreenId } from "../types";
 
-const TABS: { id: ScreenId; icon: string; label: string }[] = [
+export const TABS: { id: ScreenId; icon: string; label: string }[] = [
   { id: "home", icon: "🏠", label: "ホーム" },
   { id: "chat", icon: "💬", label: "チャット" },
   { id: "todo", icon: "📋", label: "TODO" },
@@ -13,12 +13,16 @@ const TABS: { id: ScreenId; icon: string; label: string }[] = [
 export function BottomNav({
   active,
   onChange,
+  className = "",
 }: {
   active: ScreenId;
   onChange: (s: ScreenId) => void;
+  className?: string;
 }) {
   return (
-    <nav className="absolute inset-x-0 bottom-0 z-20 flex items-stretch border-t border-line bg-card/95 px-1 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-2 backdrop-blur">
+    <nav
+      className={`absolute inset-x-0 bottom-0 z-20 flex items-stretch border-t border-line bg-card/95 px-1 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-2 backdrop-blur ${className}`}
+    >
       {TABS.map((t) => {
         const on = t.id === active;
         return (

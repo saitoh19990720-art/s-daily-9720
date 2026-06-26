@@ -7,12 +7,17 @@ export type Tone = string;
 export type PricingPlanId = "free" | "health" | "omamori";
 export type ScreenId = "home" | "chat" | "todo" | "health" | "plan" | "settings" | "memo";
 
+export type OshiMode = "secretary" | "friend" | "oshi"; // 秘書／友達／推し
+
 export interface OshiConfig {
   name: string;
-  yourName: string;
+  yourName: string; // ユーザーへの呼び方
   avatar: string; // 絵文字 or dataURL
   relationship: Relationship;
   tone: Tone;
+  mode: OshiMode; // 3モード
+  second: string; // 二人称（あなた/きみ 等）
+  banned: string; // 禁止事項（絶対にしないこと）
   // キャラの“素の設定”（ユーザーがカスタマイズ）
   firstPerson: string; // 一人称（例：わたし／俺／僕）
   catchphrase: string; // 口癖（例：〜だね）
@@ -46,14 +51,21 @@ export interface ScheduleItem {
   date: string; // YYYY-MM-DD（空可）
 }
 
+// チャットから拾う候補（TODO/メモ/予定/体調）
+export type CandKind = "todo" | "memo" | "schedule" | "health";
+export interface Candidate {
+  kind: CandKind;
+  text: string; // 表示・保存するテキスト（healthは症状タグ）
+}
+
 export interface ChatMsg {
   id: string;
   role: "oshi" | "me";
   text: string;
   ts: number;
-  // 推しのメッセージに付くTODO候補（未追加のときだけ表示）
-  suggestion?: string;
-  suggestionResolved?: boolean;
+  // 推しのメッセージに付く候補（未処理のときだけカード表示）
+  candidate?: Candidate;
+  candidateResolved?: boolean;
 }
 
 export type Pain = "なし" | "少し" | "つらい";

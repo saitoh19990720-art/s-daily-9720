@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
 import { Avatar } from "../components/Avatar";
+import { CAND_META } from "../lib/extract";
 
 export function Chat() {
-  const { s, sendMessage, acceptSuggestion, skipSuggestion } = useStore();
+  const { s, sendMessage, acceptCandidate, skipCandidate } = useStore();
   const { oshi, chat } = s;
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -56,20 +57,22 @@ export function Chat() {
                 </div>
               </div>
 
-              {/* TODO候補カード（芯の機能） */}
-              {m.suggestion && !m.suggestionResolved && (
+              {/* 候補カード（芯の機能：TODO/メモ/予定/体調） */}
+              {m.candidate && !m.candidateResolved && (
                 <div className="ml-7 max-w-[88%] rounded-2xl border border-accent/40 bg-card p-3 shadow-soft">
-                  <p className="text-[11px] font-bold text-accent">📋 TODO候補</p>
-                  <p className="mt-1 text-[14px] font-medium text-ink">「{m.suggestion}」</p>
+                  <p className="text-[11px] font-bold text-accent">
+                    {CAND_META[m.candidate.kind].icon} {CAND_META[m.candidate.kind].label}
+                  </p>
+                  <p className="mt-1 text-[14px] font-medium text-ink">「{m.candidate.text}」</p>
                   <div className="mt-2.5 flex gap-2">
                     <button
-                      onClick={() => acceptSuggestion(m.id)}
+                      onClick={() => acceptCandidate(m.id)}
                       className="rounded-full bg-accent px-3.5 py-1.5 text-[12px] font-bold text-white active:opacity-80"
                     >
-                      TODOに追加
+                      {CAND_META[m.candidate.kind].action}
                     </button>
                     <button
-                      onClick={() => skipSuggestion(m.id)}
+                      onClick={() => skipCandidate(m.id)}
                       className="rounded-full border border-line px-3.5 py-1.5 text-[12px] font-bold text-muted active:bg-surface"
                     >
                       スキップ
@@ -77,7 +80,7 @@ export function Chat() {
                   </div>
                 </div>
               )}
-              {m.suggestion && m.suggestionResolved && (
+              {m.candidate && m.candidateResolved && (
                 <p className="ml-7 text-[11px] text-muted">✓ 整理済み</p>
               )}
             </div>

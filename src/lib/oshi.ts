@@ -126,16 +126,11 @@ function stripNg(text: string, ngWords: string): string {
 // 体調が強くつらそうなワード（医療は断定せず相談を促す・CLAUDE.md §14）
 const HEAVY_HEALTH = ["つらい", "痛い", "しんどい", "病院", "熱", "吐き", "めまい", "限界", "苦しい"];
 
-export function oshiReply(
-  userText: string,
-  oshi: OshiConfig,
-  seed: number,
-  omamori = false,
-): { reply: string; suggestion: string | null } {
-  const suggestion = detectTodo(userText);
+export function oshiReply(userText: string, oshi: OshiConfig, seed: number, omamori = false): string {
+  const hasTask = !!detectTodo(userText);
   // お守りモード中は、口調を上書きして特別やさしくする
   const bank = omamori ? GENTLE : (REPLIES[oshi.tone] ?? REPLIES["やさしい"]);
-  const tpl = suggestion ? pick(bank.withTask, seed) : pick(bank.plain, seed);
+  const tpl = hasTask ? pick(bank.withTask, seed) : pick(bank.plain, seed);
   let reply = tpl
     .replaceAll("{me}", oshi.yourName || "きみ")
     .replaceAll("{i}", oshi.firstPerson || "わたし");
@@ -147,20 +142,28 @@ export function oshiReply(
   if (HEAVY_HEALTH.some((w) => userText.includes(w))) {
     reply += " ……つらいときは無理しないで、医療機関や信頼できる人にも頼ってね。";
   }
-  return { reply, suggestion };
+  return reply;
 }
 
 // 「あとから」AIに自由会話をさせる時に使うシステムプロンプトを、
 // ユーザーが設定したキャラ情報から自動生成する（接続はキー＋承認が要るので未実装）。
 export function buildSystemPrompt(oshi: OshiConfig): string {
+  const modeLabel =
+    oshi.mode === "secretary"
+      ? "秘書（丁寧・効率重視で支える）"
+      : oshi.mode === "friend"
+        ? "友達（対等でフランク）"
+        : "推し（親密で特別な存在として寄り添う）";
   const lines = [
     `あなたは「${oshi.name}」。${oshi.yourName}にとっての「${oshi.relationship}」です。`,
-    `一人称は「${oshi.firstPerson || "わたし"}」。相手のことは「${oshi.yourName}」と呼びます。`,
+    `関わり方のモードは「${modeLabel}」。`,
+    `一人称は「${oshi.firstPerson || "わたし"}」、二人称は「${oshi.second || "きみ"}」。相手のことは「${oshi.yourName}」と呼びます。`,
     `話し方のトーンは「${oshi.tone}」。`,
   ];
   if (oshi.catchphrase) lines.push(`口癖：「${oshi.catchphrase}」を時々使います。`);
   if (oshi.persona) lines.push(`性格・設定：${oshi.persona}`);
   if (oshi.ngWords) lines.push(`次の言葉は絶対に使いません：${oshi.ngWords}`);
+  if (oshi.banned) lines.push(`次のことは絶対にしません（禁止）：${oshi.banned}`);
   if (oshi.gentleOnPeriod)
     lines.push("相手が生理中・体調が悪い日は、口調に関係なく特別やさしく、無理させない言い方にします。");
   if (oshi.supportStyles?.length)
