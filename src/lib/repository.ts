@@ -1,8 +1,7 @@
 // 永続化はこの Repository 層に閉じ込める。将来 Supabase 等へ差し替え可能にするため、
 // 画面/状態コードは localStorage を直接触らない（しずくの実装方針）。
 // localStorage キーは Vanilla版(oshi-os-demo)と完全に同一 → 既存ユーザーのデータを引き継ぐ。
-
-import type { HealthLog, Oshi, PlanItem, PlanTier, Theme } from './types'
+import type { HealthLog, Oshi, PlanCat, PlanItem, PlanTier, Theme } from './types'
 
 const KEYS = {
   owner: 'oshi-os-owner',
@@ -29,112 +28,206 @@ export const DEFAULT_OSHI: Oshi = {
   avatarImg: null,
 }
 
-// 移行段で永続化するのは Vanilla版が保存していたキーのみ（挙動を保持）。
+// 移行段階で永続化するのは Vanilla版が保存していたキーのみ（挙動を保持）。
 // todo / memo は Vanilla版でも未永続化 = セッション内保持。会話のかけら基盤フェーズで永続化する。
 export interface Repository {
   getOwner(): boolean
-  setOwner(v: boolean): void
+  setOwner(v: boolean): boolean
 
   getTheme(): Theme | null
-  setTheme(t: Theme): void
+  setTheme(t: Theme): boolean
 
   getOshi(): Oshi | null
-  setOshi(o: Oshi): void
+  setOshi(o: Oshi): boolean
 
   getOnboardingDone(): boolean
-  setOnboardingDone(v: boolean): void
+  setOnboardingDone(v: boolean): boolean
 
   getPlanItems(): PlanItem[] | null
-  setPlanItems(items: PlanItem[]): void
+  setPlanItems(items: PlanItem[]): boolean
 
   getHealthLogs(): HealthLog[]
-  setHealthLogs(logs: HealthLog[]): void
+  setHealthLogs(logs: HealthLog[]): boolean
 
   getPeriodStart(): string | null
-  setPeriodStart(s: string | null): void
+  setPeriodStart(s: string | null): boolean
 
   getInPeriod(): boolean
-  setInPeriod(v: boolean): void
+  setInPeriod(v: boolean): boolean
+  setPeriodState(s: string | null, inPeriod: boolean): boolean
 
   getPlanTier(): PlanTier
-  setPlanTier(t: PlanTier): void
+  setPlanTier(t: PlanTier): boolean
 }
 
-function readJSON<T>(key: string): T | null {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isString = (value: unknown): value is string => typeof value === 'string'
+
+function isOshi(value: unknown): value is Oshi {
+  if (!isRecord(value)) return false
+  return (
+    isString(value.name) &&
+    isString(value.callname) &&
+    isString(value.relation) &&
+    isString(value.tone) &&
+    isString(value.first) &&
+    isString(value.second) &&
+    isString(value.nowords) &&
+    isString(value.core) &&
+    isString(value.banned) &&
+    (value.avatarImg === null || isString(value.avatarImg))
+  )
+}
+
+const PLAN_CATS: readonly PlanCat[] = ['task', 'fun', 'care', 'rest']
+
+function isPlanItem(value: unknown): value is PlanItem {
+  if (!isRecord(value)) return false
+  return (
+    isString(value.text) &&
+    isString(value.time) &&
+    isString(value.cat) &&
+    PLAN_CATS.includes(value.cat as PlanCat)
+  )
+}
+
+function isHealthLog(value: unknown): value is HealthLog {
+  if (!isRecord(value)) return false
+  return (
+    isString(value.date) &&
+    isString(value.mood) &&
+    isString(value.pain) &&
+    isString(value.tags) &&
+    isString(value.memo) &&
+    typeof value.period === 'boolean'
+  )
+}
+
+function readString(key: string): string | null {
   try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : null
+    return localStorage.getItem(key)
   } catch {
     return null
   }
 }
 
+function readJSON(key: string): unknown | null {
+  const raw = readString(key)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return null
+  }
+}
+
+function writeStorage(action: () => void): boolean {
+  try {
+    action()
+    return true
+  } catch {
+    return false
+  }
+}
+
 export class LocalStorageRepository implements Repository {
   getOwner(): boolean {
-    return localStorage.getItem(KEYS.owner) === 'true'
+    return readString(KEYS.owner) === 'true'
   }
-  setOwner(v: boolean): void {
-    localStorage.setItem(KEYS.owner, v ? 'true' : 'false')
+  setOwner(v: boolean): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.owner, v ? 'true' : 'false'))
   }
 
   getTheme(): Theme | null {
-    const t = localStorage.getItem(KEYS.theme)
+    const t = readString(KEYS.theme)
     return t === 'dark' || t === 'light' ? t : null
   }
-  setTheme(t: Theme): void {
-    localStorage.setItem(KEYS.theme, t)
+  setTheme(t: Theme): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.theme, t))
   }
 
   getOshi(): Oshi | null {
-    return readJSON<Oshi>(KEYS.oshi)
+    const value = readJSON(KEYS.oshi)
+    return isOshi(value) ? value : null
   }
-  setOshi(o: Oshi): void {
-    localStorage.setItem(KEYS.oshi, JSON.stringify(o))
+  setOshi(o: Oshi): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.oshi, JSON.stringify(o)))
   }
 
   getOnboardingDone(): boolean {
-    return !!localStorage.getItem(KEYS.obdone)
+    return !!readString(KEYS.obdone)
   }
-  setOnboardingDone(v: boolean): void {
-    if (v) localStorage.setItem(KEYS.obdone, '1')
-    else localStorage.removeItem(KEYS.obdone)
+  setOnboardingDone(v: boolean): boolean {
+    return writeStorage(() => {
+      if (v) localStorage.setItem(KEYS.obdone, '1')
+      else localStorage.removeItem(KEYS.obdone)
+    })
   }
 
   getPlanItems(): PlanItem[] | null {
-    return readJSON<PlanItem[]>(KEYS.planItems)
+    const value = readJSON(KEYS.planItems)
+    if (!Array.isArray(value)) return null
+    return value.filter(isPlanItem)
   }
-  setPlanItems(items: PlanItem[]): void {
-    localStorage.setItem(KEYS.planItems, JSON.stringify(items))
+  setPlanItems(items: PlanItem[]): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.planItems, JSON.stringify(items)))
   }
 
   getHealthLogs(): HealthLog[] {
-    return readJSON<HealthLog[]>(KEYS.hlogs) ?? []
+    const value = readJSON(KEYS.hlogs)
+    if (!Array.isArray(value)) return []
+    return value.filter(isHealthLog)
   }
-  setHealthLogs(logs: HealthLog[]): void {
-    localStorage.setItem(KEYS.hlogs, JSON.stringify(logs))
+  setHealthLogs(logs: HealthLog[]): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.hlogs, JSON.stringify(logs)))
   }
 
   getPeriodStart(): string | null {
-    return localStorage.getItem(KEYS.pstart)
+    const value = readString(KEYS.pstart)
+    return value && !Number.isNaN(Date.parse(value)) ? value : null
   }
-  setPeriodStart(s: string | null): void {
-    if (s) localStorage.setItem(KEYS.pstart, s)
-    else localStorage.removeItem(KEYS.pstart)
+  setPeriodStart(s: string | null): boolean {
+    return writeStorage(() => {
+      if (s) localStorage.setItem(KEYS.pstart, s)
+      else localStorage.removeItem(KEYS.pstart)
+    })
   }
 
   getInPeriod(): boolean {
-    return localStorage.getItem(KEYS.pin) === 'true'
+    return readString(KEYS.pin) === 'true'
   }
-  setInPeriod(v: boolean): void {
-    localStorage.setItem(KEYS.pin, v ? 'true' : 'false')
+  setInPeriod(v: boolean): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.pin, v ? 'true' : 'false'))
+  }
+
+  setPeriodState(s: string | null, inPeriod: boolean): boolean {
+    const previousStart = readString(KEYS.pstart)
+    const previousInPeriod = readString(KEYS.pin)
+    try {
+      if (s) localStorage.setItem(KEYS.pstart, s)
+      else localStorage.removeItem(KEYS.pstart)
+      localStorage.setItem(KEYS.pin, inPeriod ? 'true' : 'false')
+      return true
+    } catch {
+      // 2キー目で失敗した場合も、可能な限り保存前の組み合わせへ戻す。
+      writeStorage(() => {
+        if (previousStart === null) localStorage.removeItem(KEYS.pstart)
+        else localStorage.setItem(KEYS.pstart, previousStart)
+        if (previousInPeriod === null) localStorage.removeItem(KEYS.pin)
+        else localStorage.setItem(KEYS.pin, previousInPeriod)
+      })
+      return false
+    }
   }
 
   getPlanTier(): PlanTier {
-    const p = localStorage.getItem(KEYS.plan)
+    const p = readString(KEYS.plan)
     return p === 'once' || p === 'sub' ? p : 'free'
   }
-  setPlanTier(t: PlanTier): void {
-    localStorage.setItem(KEYS.plan, t)
+  setPlanTier(t: PlanTier): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.plan, t))
   }
 }
 

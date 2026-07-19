@@ -29,8 +29,10 @@ export default function PlanModal() {
   const save = () => {
     const t = text.trim()
     if (!t) return
-    if (addPlanItem(t, time, cat)) showToast('予定を追加 🗓')
-    closePlanModal()
+    if (addPlanItem(t, time, cat)) {
+      showToast('予定を追加 🗓')
+      closePlanModal()
+    }
   }
 
   return (

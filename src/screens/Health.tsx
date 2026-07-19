@@ -39,7 +39,7 @@ export default function Health() {
 
   const onSave = () => {
     const today = new Date().toLocaleDateString('ja', { month: '2-digit', day: '2-digit' })
-    saveHealth({
+    const saved = saveHealth({
       date: today,
       mood: mood ?? '—',
       pain,
@@ -47,8 +47,10 @@ export default function Health() {
       memo: memo.trim(),
       period: inPeriod,
     })
-    setMemo('')
-    setSymptoms(new Set())
+    if (saved) {
+      setMemo('')
+      setSymptoms(new Set())
+    }
   }
 
   return (

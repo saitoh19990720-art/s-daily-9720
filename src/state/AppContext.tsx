@@ -12,6 +12,7 @@ import {
 } from 'react'
 import { DEFAULT_OSHI, repo } from '../lib/repository'
 import { DEFS, FREE_LIMITS, RESPONSES } from '../lib/constants'
+import { tokyoShortDate } from '../lib/date'
 import type {
   ChatRole,
   Extract,
@@ -31,8 +32,8 @@ import type {
 let _seq = 0
 const nextId = () => `id${++_seq}`
 
-const todayShort = () =>
-  new Date().toLocaleDateString('ja', { month: '2-digit', day: '2-digit' })
+export const STORAGE_FAILURE_MESSAGE =
+  '保存できませんでした。空き容量やSafariの設定を確認して、もう一度お試しください。'
 
 // チャットの表示要素（メッセージ / 入力中 / 保存候補カード）
 export type ChatItem =
@@ -49,10 +50,10 @@ interface AppState {
   screen: Screen
   setScreen: (s: Screen) => void
   obDone: boolean
-  finishOnboarding: () => void
+  finishOnboarding: () => boolean
   // 推し
   oshi: Oshi
-  saveOshi: (o: Oshi) => void
+  saveOshi: (o: Oshi) => boolean
   previewAvatar: (img: string | null) => void
   // タスク
   todos: Todo[]
@@ -71,7 +72,7 @@ interface AppState {
   deletePlanItem: (idx: number) => void
   // 体調
   healthLogs: HealthLog[]
-  saveHealth: (log: HealthLog) => void
+  saveHealth: (log: HealthLog) => boolean
   periodStart: string | null
   inPeriod: boolean
   startPeriod: () => void
@@ -164,6 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [toast, setToast] = useState<string>('')
   const toastTimer = useRef<number | undefined>(undefined)
+  const savingCandidates = useRef<Set<string>>(new Set())
 
   const [todoModal, setTodoModal] = useState<{ open: boolean; editingId: string | null }>({
     open: false,
@@ -183,10 +185,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openPlanModal = useCallback(() => setPlanModal({ open: true }), [])
   const closePlanModal = useCallback(() => setPlanModal({ open: false }), [])
 
-  // テーマ：documentElement に反映＋永続化
+  // テーマ：documentElement に反映。永続化は切替時に成功を確認してから行う。
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    repo.setTheme(theme)
   }, [theme])
 
   // owner：body クラスで .owner-only の表示制御（CSS が参照）
@@ -199,6 +200,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(''), 2200)
   }, [])
+
+  const showStorageFailure = useCallback(() => {
+    showToast(STORAGE_FAILURE_MESSAGE)
+  }, [showToast])
 
   const dispName = useCallback(
     (name?: string) => (owner ? name || '推し' : '◯◯'),
@@ -217,25 +222,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [owner, showToast],
   )
 
-  const toggleTheme = useCallback(
-    () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
-    [],
-  )
+  const toggleTheme = useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    if (!repo.setTheme(next)) {
+      showStorageFailure()
+      return
+    }
+    setTheme(next)
+  }, [showStorageFailure, theme])
 
   const finishOnboarding = useCallback(() => {
-    repo.setOnboardingDone(true)
+    if (!repo.setOnboardingDone(true)) {
+      showStorageFailure()
+      return false
+    }
     setObDone(true)
     setScreen('settings')
-  }, [])
+    return true
+  }, [showStorageFailure])
 
   const saveOshi = useCallback(
     (o: Oshi) => {
+      if (!repo.setOshi(o)) {
+        showStorageFailure()
+        return false
+      }
       setOshi(o)
-      repo.setOshi(o)
       showToast(`${owner ? o.name || '推し' : '◯◯'}の設定を保存 🩵`)
       window.setTimeout(() => setScreen('home'), 700)
+      return true
     },
-    [owner, showToast],
+    [owner, showStorageFailure, showToast],
   )
 
   // アバターの即時プレビュー（保存は saveOshi 時。Vanilla版 onSetAv の挙動）
@@ -246,18 +263,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // タスク（Vanilla版と同じくセッション内保持。永続化は会話のかけら基盤フェーズで対応）
   const addTodo = useCallback(
     (text: string, due: string, prio: Prio) => {
-      let ok = true
-      setTodos((prev) => {
-        if (omamoriOn && prev.length >= 3) {
-          showToast('お守りモード中。3つまで 🧿')
-          ok = false
-          return prev
-        }
-        return [...prev, { id: nextId(), text, done: false, due, prio }]
-      })
-      return ok
+      if (omamoriOn && todos.length >= 3) {
+        showToast('お守りモード中。3つまで 🧿')
+        return false
+      }
+      setTodos([...todos, { id: nextId(), text, done: false, due, prio }])
+      return true
     },
-    [omamoriOn, showToast],
+    [omamoriOn, showToast, todos],
   )
   const editTodo = useCallback((id: string, text: string, due: string, prio: Prio) => {
     setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, text, due, prio } : t)))
@@ -275,7 +288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // 会話のかけら（memo）
   const addMemo = useCallback((text: string) => {
-    setMemos((prev) => [{ text, date: todayShort() }, ...prev])
+    setMemos((prev) => [{ text, date: tokyoShortDate() }, ...prev])
     return true
   }, [])
   const editMemo = useCallback((idx: number, text: string) => {
@@ -292,56 +305,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // 予定（永続化）
   const addPlanItem = useCallback(
     (text: string, time: string, cat: PlanCat) => {
-      let ok = true
-      setPlanItems((prev) => {
-        if (!owner && prev.length >= FREE_LIMITS.plan) {
-          showToast(`無料プランは${FREE_LIMITS.plan}件まで`)
-          ok = false
-          return prev
-        }
-        const next = [...prev, { text, time, cat }].sort((a, b) =>
-          (a.time || '99:99').localeCompare(b.time || '99:99'),
-        )
-        repo.setPlanItems(next)
-        return next
-      })
-      return ok
+      if (!owner && planItems.length >= FREE_LIMITS.plan) {
+        showToast(`無料プランは${FREE_LIMITS.plan}件まで`)
+        return false
+      }
+      const next = [...planItems, { text, time, cat }].sort((a, b) =>
+        (a.time || '99:99').localeCompare(b.time || '99:99'),
+      )
+      if (!repo.setPlanItems(next)) {
+        showStorageFailure()
+        return false
+      }
+      setPlanItems(next)
+      return true
     },
-    [owner, showToast],
+    [owner, planItems, showStorageFailure, showToast],
   )
-  const deletePlanItem = useCallback((idx: number) => {
-    setPlanItems((prev) => {
-      const next = prev.filter((_, i) => i !== idx)
-      repo.setPlanItems(next)
-      return next
-    })
-  }, [])
+  const deletePlanItem = useCallback(
+    (idx: number) => {
+      const next = planItems.filter((_, i) => i !== idx)
+      if (!repo.setPlanItems(next)) {
+        showStorageFailure()
+        return
+      }
+      setPlanItems(next)
+    },
+    [planItems, showStorageFailure],
+  )
 
   // 体調
   const saveHealth = useCallback(
     (log: HealthLog) => {
-      setHealthLogs((prev) => {
-        const next = [log, ...prev].slice(0, 30)
-        repo.setHealthLogs(next)
-        return next
-      })
+      const next = [log, ...healthLogs].slice(0, 30)
+      if (!repo.setHealthLogs(next)) {
+        showStorageFailure()
+        return false
+      }
+      setHealthLogs(next)
       showToast('体調を記録 🩵')
+      return true
     },
-    [showToast],
+    [healthLogs, showStorageFailure, showToast],
   )
   const startPeriod = useCallback(() => {
     const s = new Date().toISOString()
+    if (!repo.setPeriodState(s, true)) {
+      showStorageFailure()
+      return
+    }
     setPeriodStart(s)
     setInPeriod(true)
-    repo.setPeriodStart(s)
-    repo.setInPeriod(true)
     showToast('生理開始を記録 🩸')
-  }, [showToast])
+  }, [showStorageFailure, showToast])
   const endPeriod = useCallback(() => {
+    if (!repo.setPeriodState(periodStart, false)) {
+      showStorageFailure()
+      return
+    }
     setInPeriod(false)
-    repo.setInPeriod(false)
     showToast('お疲れさま 🩵')
-  }, [showToast])
+  }, [periodStart, showStorageFailure, showToast])
 
   const setOmamori = useCallback(
     (v: boolean) => {
@@ -353,8 +376,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const selectPlan = useCallback(
     (t: PlanTier) => {
+      if (!repo.setPlanTier(t)) {
+        showStorageFailure()
+        return
+      }
       setPlanTier(t)
-      repo.setPlanTier(t)
       const labels: Record<PlanTier, string> = {
         free: '無料プラン',
         once: '体調管理パック',
@@ -362,7 +388,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       showToast(labels[t] + ' に切替 🩵')
     },
-    [showToast],
+    [showStorageFailure, showToast],
   )
 
   // チャット送信（Vanilla send() の移植：ユーザー発話→入力中→応答→保存候補）
@@ -401,28 +427,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // 保存候補を「保存」＝ユーザー確認後にだけ保存する（自動保存しない）
   const saveCandidate = useCallback(
     (id: string) => {
-      let savedType: ExtractType | null = null
-      setChatItems((prev) => {
-        const item = prev.find((it) => it.id === id)
-        if (!item || item.kind !== 'ext') return prev
-        const { type, text } = item.extract
-        savedType = type
-        if (type === 'todo') setTodos((t) => [...t, { id: nextId(), text, done: false, due: '', prio: 'low' }])
-        if (type === 'memo') setMemos((m) => [{ text, date: todayShort() }, ...m])
-        if (type === 'plan')
-          setPlanItems((p) => {
-            const next = [...p, { text, time: '', cat: 'task' as PlanCat }]
-            repo.setPlanItems(next)
-            return next
-          })
-        return prev.map((it) => (it.id === id && it.kind === 'ext' ? { ...it, state: 'saved' } : it))
-      })
-      showToast(savedType === 'memo' ? '会話のかけらに残しました' : '保存したよ')
+      if (savingCandidates.current.has(id)) return
+      const item = chatItems.find((it) => it.id === id)
+      if (!item || item.kind !== 'ext' || item.state !== 'open') return
+
+      savingCandidates.current.add(id)
+      const { type, text } = item.extract
+      if (type === 'plan') {
+        const next = [...planItems, { text, time: '', cat: 'task' as PlanCat }]
+        if (!repo.setPlanItems(next)) {
+          savingCandidates.current.delete(id)
+          showStorageFailure()
+          return
+        }
+        setPlanItems(next)
+      } else if (type === 'todo') {
+        setTodos((current) => [
+          ...current,
+          { id: nextId(), text, done: false, due: '', prio: 'low' },
+        ])
+      } else {
+        setMemos((current) => [{ text, date: tokyoShortDate() }, ...current])
+      }
+
+      setChatItems((current) =>
+        current.map((chatItem) =>
+          chatItem.id === id && chatItem.kind === 'ext'
+            ? { ...chatItem, state: 'saved' }
+            : chatItem,
+        ),
+      )
+      showToast(type === 'memo' ? '会話のかけらに残しました' : '保存したよ')
       window.setTimeout(() => {
-        setChatItems((prev) => prev.filter((it) => it.id !== id))
+        setChatItems((current) => current.filter((chatItem) => chatItem.id !== id))
+        savingCandidates.current.delete(id)
       }, 500)
     },
-    [showToast],
+    [chatItems, planItems, showStorageFailure, showToast],
   )
   const skipCandidate = useCallback((id: string) => {
     setChatItems((prev) => prev.filter((it) => it.id !== id))

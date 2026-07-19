@@ -3,10 +3,9 @@ import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { useApp } from '../state/AppContext'
 import type { Prio } from '../lib/types'
+import { tokyoDateInputValue } from '../lib/date'
 
 type DueMode = 'today' | 'tomorrow' | 'custom' | 'none'
-
-const iso = (d: Date) => d.toISOString().slice(0, 10)
 
 export default function TodoModal() {
   const { todoModal, closeTodoModal, todos, addTodo, editTodo, checkLimit, showToast } = useApp()
@@ -30,12 +29,9 @@ export default function TodoModal() {
 
   const pickDue = (mode: DueMode) => {
     setDueMode(mode)
-    if (mode === 'today') setDateVal(iso(new Date()))
-    else if (mode === 'tomorrow') {
-      const t = new Date()
-      t.setDate(t.getDate() + 1)
-      setDateVal(iso(t))
-    } else if (mode === 'none') setDateVal('')
+    if (mode === 'today') setDateVal(tokyoDateInputValue())
+    else if (mode === 'tomorrow') setDateVal(tokyoDateInputValue(new Date(), 1))
+    else if (mode === 'none') setDateVal('')
     // custom: 日付は date input で選ぶ
   }
 
