@@ -1,0 +1,225 @@
+// 設定画面。Vanilla版 scr-settings のフォーム・コピー・owner-only 制御を保持。
+import { useRef, useState } from 'react'
+import { useApp } from '../state/AppContext'
+import { ThemeButton } from '../components/TopBits'
+
+const RELATIONS = ['推し', '相棒', '恋人未満', '恋人', '友達', '先輩', '執事・メイド', '創作キャラ']
+const TONES = ['やさしい', 'クール', '甘い', 'ツンデレ', '明るい', '無口', '丁寧']
+const MODES = [
+  { icon: '🌅', name: '朝モード', desc: '今日の準備' },
+  { icon: '🌙', name: '夜モード', desc: '1日の振り返り' },
+  { icon: '😴', name: '安眠モード', desc: '静かに寄り添う' },
+  { icon: '⏰', name: '締切前', desc: '集中サポート' },
+  { icon: '🎪', name: '現場前', desc: 'テンション上げ' },
+  { icon: '🤒', name: '体調不良', desc: 'やさしく寄り添う' },
+]
+
+export default function Settings() {
+  const { oshi, saveOshi, previewAvatar, showToast, setScreen } = useApp()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const [name, setName] = useState(oshi.name)
+  const [callname, setCallname] = useState(oshi.callname)
+  const [relation, setRelation] = useState(oshi.relation)
+  const [tone, setTone] = useState(oshi.tone)
+  const [first, setFirst] = useState(oshi.first)
+  const [second, setSecond] = useState(oshi.second)
+  const [nowords, setNowords] = useState(oshi.nowords)
+  const [core, setCore] = useState(oshi.core)
+  const [banned, setBanned] = useState(oshi.banned)
+  // 特殊モードは Vanilla版でも保存対象外の見た目トグル（初期は前半3つ選択）
+  const [modes, setModes] = useState<Set<number>>(new Set([0, 1, 2]))
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const r = new FileReader()
+    r.onload = (ev) => {
+      previewAvatar(ev.target?.result as string)
+      showToast('画像を設定 🩵')
+    }
+    r.readAsDataURL(f)
+  }
+
+  const save = () => {
+    saveOshi({
+      ...oshi,
+      name: name.trim() || '推し',
+      callname: callname.trim() || 'きみ',
+      relation,
+      tone,
+      first: first.trim(),
+      second: second.trim(),
+      nowords: nowords.trim(),
+      core: core.trim(),
+      banned: banned.trim(),
+    })
+  }
+
+  const toggleMode = (i: number) =>
+    setModes((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+
+  return (
+    <div className="screen on">
+      <div className="topbar">
+        <span className="topbar-title">設定</span>
+        <div className="topbar-right">
+          <ThemeButton />
+        </div>
+      </div>
+      <div className="scroll">
+        <div
+          className="card owner-only"
+          onClick={() => setScreen('plan')}
+          style={{
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg,var(--accent-p),rgba(184,168,216,.12))',
+            borderColor: 'var(--accent-s)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>✦</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>プラン管理</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                お守りプラン・体調管理パック
+              </div>
+            </div>
+            <div style={{ fontSize: 18, color: 'var(--muted)' }}>›</div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">アバター画像</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="av-upload" onClick={() => fileRef.current?.click()}>
+              {oshi.avatarImg ? (
+                <img src={oshi.avatarImg} alt="" />
+              ) : (
+                <span style={{ fontSize: 26 }}>🌙</span>
+              )}
+              <div className="av-hint">変更</div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+              タップして推しの画像を選ぶ。
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFile} />
+        </div>
+
+        <div className="card">
+          <div className="card-title">基本情報</div>
+          <div className="f-group">
+            <label className="f-label">推しの名前</label>
+            <input className="f-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="例：あかり" />
+          </div>
+          <div className="f-group">
+            <label className="f-label">私への呼び方</label>
+            <input className="f-input" type="text" value={callname} onChange={(e) => setCallname(e.target.value)} placeholder="例：きみ" />
+          </div>
+          <div className="f-group">
+            <label className="f-label">関係性</label>
+            <div className="chip-g">
+              {RELATIONS.map((r) => (
+                <div key={r} className={`chip${relation === r ? ' sel' : ''}`} onClick={() => setRelation(r)}>
+                  {r}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">口調・話し方</div>
+          <div className="f-group">
+            <label className="f-label">トーン</label>
+            <div className="chip-g">
+              {TONES.map((t) => (
+                <div key={t} className={`chip${tone === t ? ' sel' : ''}`} onClick={() => setTone(t)}>
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="f-row">
+            <div className="f-group">
+              <label className="f-label">一人称</label>
+              <input className="f-input" type="text" value={first} onChange={(e) => setFirst(e.target.value)} placeholder="俺、私、僕" />
+            </div>
+            <div className="f-group">
+              <label className="f-label">二人称</label>
+              <input className="f-input" type="text" value={second} onChange={(e) => setSecond(e.target.value)} placeholder="きみ" />
+            </div>
+          </div>
+          <div className="f-group">
+            <label className="f-label">使わない言葉</label>
+            <input className="f-input" type="text" value={nowords} onChange={(e) => setNowords(e.target.value)} placeholder="例：頑張れ" />
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            深い人格設定{' '}
+            <span
+              style={{
+                fontSize: 9,
+                color: 'var(--soft)',
+                background: 'var(--accent-p)',
+                border: '1px solid var(--accent-s)',
+                borderRadius: 9,
+                padding: '1px 8px',
+                marginLeft: 4,
+              }}
+            >
+              上級者向け
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--muted)',
+              lineHeight: 1.6,
+              padding: '9px 11px',
+              background: 'var(--accent-p)',
+              borderRadius: 10,
+              border: '1px solid var(--accent-s)',
+              marginBottom: 12,
+            }}
+          >
+            🤖 AIだけが読む設定。詳しく書くほど精度UP。
+          </div>
+          <div className="f-group">
+            <label className="f-label">性格の核</label>
+            <textarea className="f-textarea f-input" value={core} onChange={(e) => setCore(e.target.value)} rows={2} />
+          </div>
+          <div className="f-group">
+            <label className="f-label">禁止事項</label>
+            <textarea className="f-textarea f-input" value={banned} onChange={(e) => setBanned(e.target.value)} rows={2} />
+          </div>
+        </div>
+
+        <div className="card owner-only">
+          <div className="card-title">特殊モード</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {MODES.map((m, i) => (
+              <div key={m.name} className={`mode-c${modes.has(i) ? ' sel' : ''}`} onClick={() => toggleMode(i)}>
+                <div style={{ fontSize: 16, marginBottom: 3 }}>{m.icon}</div>
+                <div style={{ fontSize: 11, fontWeight: 500 }}>{m.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button className="btn btn-primary btn-full" onClick={save} style={{ marginBottom: 8 }}>
+          この推しで設定する
+        </button>
+      </div>
+    </div>
+  )
+}
