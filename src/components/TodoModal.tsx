@@ -52,18 +52,31 @@ export default function TodoModal() {
   }
 
   const dueBtn = (mode: DueMode, label: string) => (
-    <button className={`due-btn${dueMode === mode ? ' sel' : ''}`} onClick={() => pickDue(mode)}>
+    <button
+      className={`due-btn${dueMode === mode ? ' sel' : ''}`}
+      onClick={() => pickDue(mode)}
+      aria-pressed={dueMode === mode}
+    >
       {label}
     </button>
   )
   const prioBtn = (p: Prio, label: string) => (
-    <button className={`prio-btn${prio === p ? ' sel' : ''}`} onClick={() => setPrio(p)}>
+    <button
+      className={`prio-btn${prio === p ? ' sel' : ''}`}
+      onClick={() => setPrio(p)}
+      aria-pressed={prio === p}
+    >
       {label}
     </button>
   )
 
   return (
-    <Modal open={open} onClose={closeTodoModal} title={editing ? 'タスクを編集' : 'タスクを追加'}>
+    <Modal
+      open={open}
+      onClose={closeTodoModal}
+      title={editing ? 'タスクを編集' : 'タスクを追加'}
+      description="タスクの内容、期限、優先度を入力します。"
+    >
       <input
         className="f-input"
         type="text"

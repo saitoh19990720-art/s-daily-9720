@@ -36,7 +36,12 @@ export default function PlanModal() {
   }
 
   return (
-    <Modal open={open} onClose={closePlanModal} title="予定を追加">
+    <Modal
+      open={open}
+      onClose={closePlanModal}
+      title="予定を追加"
+      description="予定の内容、時間、カテゴリを入力します。"
+    >
       <div className="f-group">
         <label className="f-label">内容</label>
         <input
@@ -59,6 +64,7 @@ export default function PlanModal() {
               key={c.cat}
               className={`cat-btn${cat === c.cat ? ' sel' : ''}`}
               onClick={() => setCat(c.cat)}
+              aria-pressed={cat === c.cat}
             >
               {c.icon}
               <span>{c.label}</span>

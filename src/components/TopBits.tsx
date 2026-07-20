@@ -2,10 +2,22 @@
 import { useApp } from '../state/AppContext'
 
 export function ThemeButton() {
-  const { theme, toggleTheme } = useApp()
+  const { themePreference, toggleTheme } = useApp()
+  const labels = {
+    light: { icon: '☀️', text: 'Light' },
+    dark: { icon: '🌙', text: 'Dark' },
+    system: { icon: '◐', text: 'System' },
+  } as const
+  const current = labels[themePreference]
   return (
-    <button className="theme-btn" onClick={toggleTheme}>
-      {theme === 'dark' ? '☀️' : '🌙'}
+    <button
+      className="theme-btn"
+      onClick={toggleTheme}
+      aria-label={`テーマ: ${current.text}。押すと切り替えます`}
+      title={`テーマ: ${current.text}`}
+    >
+      <span aria-hidden="true">{current.icon}</span>
+      <span className="theme-label">{current.text}</span>
     </button>
   )
 }

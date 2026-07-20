@@ -3,6 +3,7 @@
 // 内部の型・変数は初回移行では `memo` のまま保持する（しずくの明示決定）。
 
 export type Theme = 'light' | 'dark'
+export type ThemePreference = Theme | 'system'
 
 export interface Oshi {
   name: string

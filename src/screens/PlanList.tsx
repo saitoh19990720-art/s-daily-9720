@@ -56,6 +56,7 @@ export default function PlanList() {
                   <button
                     className="btn-icon del"
                     onClick={() => deletePlanItem(i)}
+                    aria-label={`${p.text}を削除`}
                     style={{ opacity: 0.5 }}
                   >
                     🗑

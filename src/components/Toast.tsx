@@ -3,5 +3,9 @@ import { useApp } from '../state/AppContext'
 
 export default function Toast() {
   const { toast } = useApp()
-  return <div className={`toast${toast ? ' show' : ''}`}>{toast}</div>
+  return (
+    <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite" aria-atomic="true">
+      {toast}
+    </div>
+  )
 }

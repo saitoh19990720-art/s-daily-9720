@@ -31,10 +31,10 @@ export default function Memo() {
               </div>
               <div className="mi-date">{m.date}</div>
               <div className="mi-acts">
-                <button className="btn btn-ghost btn-sm" onClick={() => openMemoModal(i)}>
+                <button className="btn btn-ghost btn-sm" onClick={() => openMemoModal(i)} aria-label={`${m.text}を編集`}>
                   編集
                 </button>
-                <button className="btn btn-danger btn-sm" onClick={() => deleteMemo(i)}>
+                <button className="btn btn-danger btn-sm" onClick={() => deleteMemo(i)} aria-label={`${m.text}を削除`}>
                   削除
                 </button>
               </div>

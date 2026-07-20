@@ -73,7 +73,8 @@ export default function Settings() {
         </div>
       </div>
       <div className="scroll">
-        <div
+        <button
+          type="button"
           className="card owner-only"
           onClick={() => setScreen('plan')}
           style={{
@@ -92,19 +93,24 @@ export default function Settings() {
             </div>
             <div style={{ fontSize: 18, color: 'var(--muted)' }}>›</div>
           </div>
-        </div>
+        </button>
 
         <div className="card">
           <div className="card-title">アバター画像</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div className="av-upload" onClick={() => fileRef.current?.click()}>
+            <button
+              type="button"
+              className="av-upload"
+              onClick={() => fileRef.current?.click()}
+              aria-label="推しの画像を変更"
+            >
               {oshi.avatarImg ? (
                 <img src={oshi.avatarImg} alt="" />
               ) : (
                 <span style={{ fontSize: 26 }}>🌙</span>
               )}
               <div className="av-hint">変更</div>
-            </div>
+            </button>
             <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
               タップして推しの画像を選ぶ。
             </div>
@@ -126,9 +132,15 @@ export default function Settings() {
             <label className="f-label">関係性</label>
             <div className="chip-g">
               {RELATIONS.map((r) => (
-                <div key={r} className={`chip${relation === r ? ' sel' : ''}`} onClick={() => setRelation(r)}>
+                <button
+                  key={r}
+                  type="button"
+                  className={`chip${relation === r ? ' sel' : ''}`}
+                  onClick={() => setRelation(r)}
+                  aria-pressed={relation === r}
+                >
                   {r}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -140,9 +152,15 @@ export default function Settings() {
             <label className="f-label">トーン</label>
             <div className="chip-g">
               {TONES.map((t) => (
-                <div key={t} className={`chip${tone === t ? ' sel' : ''}`} onClick={() => setTone(t)}>
+                <button
+                  key={t}
+                  type="button"
+                  className={`chip${tone === t ? ' sel' : ''}`}
+                  onClick={() => setTone(t)}
+                  aria-pressed={tone === t}
+                >
                   {t}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -207,11 +225,17 @@ export default function Settings() {
           <div className="card-title">特殊モード</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {MODES.map((m, i) => (
-              <div key={m.name} className={`mode-c${modes.has(i) ? ' sel' : ''}`} onClick={() => toggleMode(i)}>
+              <button
+                key={m.name}
+                type="button"
+                className={`mode-c${modes.has(i) ? ' sel' : ''}`}
+                onClick={() => toggleMode(i)}
+                aria-pressed={modes.has(i)}
+              >
                 <div style={{ fontSize: 16, marginBottom: 3 }}>{m.icon}</div>
                 <div style={{ fontSize: 11, fontWeight: 500 }}>{m.name}</div>
                 <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.desc}</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>

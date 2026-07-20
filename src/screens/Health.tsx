@@ -91,7 +91,13 @@ export default function Health() {
           <label className="f-label">気分</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {MOODS.map((m) => (
-              <button key={m} className={`emoji-btn${mood === m ? ' sel' : ''}`} onClick={() => setMood(m)}>
+              <button
+                key={m}
+                className={`emoji-btn${mood === m ? ' sel' : ''}`}
+                onClick={() => setMood(m)}
+                aria-pressed={mood === m}
+                aria-label={`気分 ${m}`}
+              >
                 {m}
               </button>
             ))}
@@ -101,9 +107,15 @@ export default function Health() {
           </label>
           <div className="chip-g">
             {PAINS.map((p) => (
-              <div key={p} className={`chip${pain === p ? ' sel' : ''}`} onClick={() => setPain(p)}>
+              <button
+                key={p}
+                type="button"
+                className={`chip${pain === p ? ' sel' : ''}`}
+                onClick={() => setPain(p)}
+                aria-pressed={pain === p}
+              >
                 {p}
-              </div>
+              </button>
             ))}
           </div>
           <label className="f-label" style={{ marginTop: 12 }}>
@@ -111,9 +123,15 @@ export default function Health() {
           </label>
           <div className="chip-g">
             {SYMPTOMS.map((s) => (
-              <div key={s} className={`chip${symptoms.has(s) ? ' sel' : ''}`} onClick={() => toggleSymptom(s)}>
+              <button
+                key={s}
+                type="button"
+                className={`chip${symptoms.has(s) ? ' sel' : ''}`}
+                onClick={() => toggleSymptom(s)}
+                aria-pressed={symptoms.has(s)}
+              >
                 {s}
-              </div>
+              </button>
             ))}
           </div>
           <div className="f-group" style={{ marginTop: 12 }}>

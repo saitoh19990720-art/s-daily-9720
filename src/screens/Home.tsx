@@ -32,7 +32,7 @@ export default function Home() {
         </div>
       </div>
       <div className="scroll">
-        <div className="card oshi-card" onClick={() => setScreen('chat')} style={{ marginBottom: 20 }}>
+        <div className="card oshi-card" style={{ marginBottom: 20 }}>
           <div className="oshi-row">
             <Avatar cls="av-48" img={oshi.avatarImg} />
             <div>
@@ -40,7 +40,9 @@ export default function Home() {
               <div className="oshi-msg-text">「今日、何かやり残してることある？ 話してみて」</div>
             </div>
           </div>
-          <button className="btn btn-primary btn-full">{name}と話す →</button>
+          <button className="btn btn-primary btn-full" onClick={() => setScreen('chat')}>
+            {name}と話す →
+          </button>
         </div>
         <div>
           <div className="sec-header">

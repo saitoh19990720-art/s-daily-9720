@@ -30,12 +30,13 @@ const TABS: Tab[] = [
 export default function TabBar() {
   const { screen, setScreen } = useApp()
   return (
-    <nav className="bnav">
+    <nav className="bnav" aria-label="メインナビゲーション">
       {TABS.map((t) => (
         <button
           key={t.key}
           className={`nb${t.ownerOnly ? ' owner-only' : ''}${screen === t.key ? ' on' : ''}`}
           onClick={() => setScreen(t.key)}
+          aria-current={screen === t.key ? 'page' : undefined}
         >
           {t.icon}
           <span className="nb-label">{t.label}</span>

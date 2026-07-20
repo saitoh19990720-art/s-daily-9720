@@ -3,6 +3,7 @@ import { StrictMode, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PlanModal from '../components/PlanModal'
+import Toast from '../components/Toast'
 import { AppProvider, STORAGE_FAILURE_MESSAGE, useApp } from './AppContext'
 
 type AppApi = ReturnType<typeof useApp>
@@ -11,12 +12,13 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 let app: AppApi
 
-function Probe({ withPlanModal = false }: { withPlanModal?: boolean }) {
+function Probe({ withPlanModal = false, withToast = false }: { withPlanModal?: boolean; withToast?: boolean }) {
   app = useApp()
   return (
     <>
       <div data-testid="toast">{app.toast}</div>
       {withPlanModal && <PlanModal />}
+      {withToast && <Toast />}
     </>
   )
 }
@@ -40,7 +42,11 @@ beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
-    value: vi.fn().mockReturnValue({ matches: false }),
+    value: vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
   })
   localStorage.clear()
 })
@@ -117,5 +123,26 @@ describe('AppProviderの保存境界', () => {
     act(() => saveButton?.click())
     expect(container?.querySelector('.modal-overlay.open')).toBeNull()
     expect(app.planItems).toEqual([{ text: '病院へ行く', time: '', cat: 'fun' }])
+  })
+})
+
+describe('Toastの読み上げ', () => {
+  it('通常通知とエラー通知をaria-live領域へ表示する', () => {
+    vi.useFakeTimers()
+    renderProbe(
+      <AppProvider>
+        <Probe withToast />
+      </AppProvider>,
+    )
+
+    act(() => app.showToast('保存しました'))
+    const toast = container?.querySelector('.toast')
+    expect(toast?.getAttribute('role')).toBe('status')
+    expect(toast?.getAttribute('aria-live')).toBe('polite')
+    expect(toast?.getAttribute('aria-atomic')).toBe('true')
+    expect(toast?.textContent).toBe('保存しました')
+
+    act(() => app.showToast(STORAGE_FAILURE_MESSAGE))
+    expect(toast?.textContent).toBe(STORAGE_FAILURE_MESSAGE)
   })
 })

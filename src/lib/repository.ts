@@ -1,7 +1,7 @@
 // 永続化はこの Repository 層に閉じ込める。将来 Supabase 等へ差し替え可能にするため、
 // 画面/状態コードは localStorage を直接触らない（しずくの実装方針）。
 // localStorage キーは Vanilla版(oshi-os-demo)と完全に同一 → 既存ユーザーのデータを引き継ぐ。
-import type { HealthLog, Oshi, PlanCat, PlanItem, PlanTier, Theme } from './types'
+import type { HealthLog, Oshi, PlanCat, PlanItem, PlanTier, ThemePreference } from './types'
 
 const KEYS = {
   owner: 'oshi-os-owner',
@@ -34,8 +34,8 @@ export interface Repository {
   getOwner(): boolean
   setOwner(v: boolean): boolean
 
-  getTheme(): Theme | null
-  setTheme(t: Theme): boolean
+  getTheme(): ThemePreference | null
+  setTheme(t: ThemePreference): boolean
 
   getOshi(): Oshi | null
   setOshi(o: Oshi): boolean
@@ -140,11 +140,11 @@ export class LocalStorageRepository implements Repository {
     return writeStorage(() => localStorage.setItem(KEYS.owner, v ? 'true' : 'false'))
   }
 
-  getTheme(): Theme | null {
+  getTheme(): ThemePreference | null {
     const t = readString(KEYS.theme)
-    return t === 'dark' || t === 'light' ? t : null
+    return t === 'dark' || t === 'light' || t === 'system' ? t : null
   }
-  setTheme(t: Theme): boolean {
+  setTheme(t: ThemePreference): boolean {
     return writeStorage(() => localStorage.setItem(KEYS.theme, t))
   }
 

@@ -36,6 +36,7 @@ export default function MemoModal() {
       open={open}
       onClose={closeMemoModal}
       title={editing ? '会話のかけらを編集' : '会話のかけらに残す'}
+      description="会話のかけらとして残す内容を入力します。"
     >
       <textarea
         className="f-textarea f-input"

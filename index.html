@@ -2,7 +2,14 @@
 <html lang="ja" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script>
+try {
+  const preference = localStorage.getItem('theme')
+  const systemDark = matchMedia('(prefers-color-scheme:dark)').matches
+  document.documentElement.dataset.theme = preference === 'dark' || (preference !== 'light' && systemDark) ? 'dark' : 'light'
+} catch {}
+</script>
 <title>推し生活OS</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500&family=Shippori+Mincho:wght@400;500&display=swap" rel="stylesheet">
 </head>

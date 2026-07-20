@@ -26,6 +26,7 @@ import type {
   Prio,
   Screen,
   Theme,
+  ThemePreference,
   Todo,
 } from '../lib/types'
 
@@ -46,6 +47,7 @@ interface AppState {
   owner: boolean
   dispName: (name?: string) => string
   theme: Theme
+  themePreference: ThemePreference
   toggleTheme: () => void
   screen: Screen
   setScreen: (s: Screen) => void
@@ -117,11 +119,8 @@ function resolveOwner(): boolean {
   return repo.getOwner()
 }
 
-function initialTheme(): Theme {
-  const saved = repo.getTheme()
-  if (saved) return saved
-  return window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'
-}
+const systemTheme = (): Theme =>
+  window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'
 
 function getRes(text: string): { base: string; extract: Extract | null } {
   for (const r of RESPONSES) {
@@ -143,7 +142,11 @@ function buildReply(base: string, tone: string, omamoriOn: boolean): string {
 export function AppProvider({ children }: { children: ReactNode }) {
   const owner = useMemo(resolveOwner, [])
 
-  const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    () => repo.getTheme() ?? 'system',
+  )
+  const [systemThemeValue, setSystemThemeValue] = useState<Theme>(systemTheme)
+  const theme: Theme = themePreference === 'system' ? systemThemeValue : themePreference
   const [screen, setScreen] = useState<Screen>('home')
   const [obDone, setObDone] = useState<boolean>(() => repo.getOnboardingDone())
   const [oshi, setOshi] = useState<Oshi>(() => repo.getOshi() ?? DEFAULT_OSHI)
@@ -190,6 +193,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme:dark)')
+    const update = (event: MediaQueryListEvent | MediaQueryList) =>
+      setSystemThemeValue(event.matches ? 'dark' : 'light')
+    update(query)
+    if (themePreference !== 'system') return
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [themePreference])
+
   // owner：body クラスで .owner-only の表示制御（CSS が参照）
   useEffect(() => {
     document.body.classList.toggle('is-owner', owner)
@@ -223,13 +236,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const toggleTheme = useCallback(() => {
-    const next = theme === 'dark' ? 'light' : 'dark'
+    const next: ThemePreference =
+      themePreference === 'light' ? 'dark' : themePreference === 'dark' ? 'system' : 'light'
     if (!repo.setTheme(next)) {
       showStorageFailure()
       return
     }
-    setTheme(next)
-  }, [showStorageFailure, theme])
+    setThemePreference(next)
+  }, [showStorageFailure, themePreference])
 
   const finishOnboarding = useCallback(() => {
     if (!repo.setOnboardingDone(true)) {
@@ -473,6 +487,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     owner,
     dispName,
     theme,
+    themePreference,
     toggleTheme,
     screen,
     setScreen,

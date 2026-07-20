@@ -59,9 +59,11 @@ describe('LocalStorageRepository', () => {
     ]
     localStorage.setItem('oshi', JSON.stringify(oshi))
     localStorage.setItem('planItems', JSON.stringify(plans))
+    localStorage.setItem('theme', 'system')
 
     expect(repository.getOshi()).toEqual(oshi)
     expect(repository.getPlanItems()).toEqual(plans)
+    expect(repository.getTheme()).toBe('system')
   })
 
   it('localStorage保存例外を成功扱いにしない', () => {
