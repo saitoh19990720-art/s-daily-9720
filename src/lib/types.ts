@@ -69,12 +69,6 @@ export interface Extract {
   text: string
 }
 
-export type Screen =
-  | 'home'
-  | 'chat'
-  | 'todo'
-  | 'memo'
-  | 'planlist'
-  | 'health'
-  | 'plan'
-  | 'settings'
+export type OrganizeTab = 'tasks' | 'fragments' | 'schedule'
+
+export type Screen = 'home' | 'chat' | 'organize' | 'health' | 'plan' | 'settings'

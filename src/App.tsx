@@ -5,9 +5,7 @@ import { useApp } from './state/AppContext'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import Chat from './screens/Chat'
-import Todo from './screens/Todo'
-import Memo from './screens/Memo'
-import PlanList from './screens/PlanList'
+import Organize from './screens/Organize'
 import Health from './screens/Health'
 import Plan from './screens/Plan'
 import Settings from './screens/Settings'
@@ -38,12 +36,8 @@ export default function App() {
         return <Home />
       case 'chat':
         return <Chat />
-      case 'todo':
-        return <Todo />
-      case 'memo':
-        return <Memo />
-      case 'planlist':
-        return <PlanList />
+      case 'organize':
+        return <Organize />
       case 'health':
         return <Health />
       case 'plan':

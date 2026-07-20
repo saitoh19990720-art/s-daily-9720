@@ -3,6 +3,24 @@ import { useApp } from '../state/AppContext'
 import { ThemeButton } from '../components/TopBits'
 import TodoItem from '../components/TodoItem'
 
+export function TodoContent() {
+  const { todos, openTodoModal } = useApp()
+  return (
+    <section className="organize-panel" aria-labelledby="organize-tab-tasks">
+      <button className="organize-add" onClick={() => openTodoModal()}>
+        ＋ 新しくタスクを追加
+      </button>
+      {todos.length === 0 ? (
+        <div className="empty organize-empty">まだタスクはありません</div>
+      ) : (
+        <div className="todo-list">
+          {todos.map((todo) => <TodoItem key={todo.id} todo={todo} />)}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Todo() {
   const { todos, openTodoModal } = useApp()
   const total = todos.length
@@ -20,20 +38,7 @@ export default function Todo() {
         </div>
       </div>
       <div className="scroll">
-        <div className="card">
-          <div className="todo-list">
-            {todos.map((t) => (
-              <TodoItem key={t.id} todo={t} />
-            ))}
-          </div>
-          <button
-            className="btn btn-ghost btn-full"
-            onClick={() => openTodoModal()}
-            style={{ marginTop: 10 }}
-          >
-            ＋ タスクを追加
-          </button>
-        </div>
+        <TodoContent />
       </div>
     </div>
   )

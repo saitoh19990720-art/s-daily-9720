@@ -56,7 +56,7 @@ export default function Home() {
           </div>
           {total === 0 && (
             <div className="empty" style={{ textAlign: 'center', padding: '14px 0' }}>
-              タスクは「タスク」タブから🌙
+              タスクは「整理」から🌙
             </div>
           )}
         </div>

@@ -22,13 +22,14 @@ npm run dev      # http://localhost:5173
 
 ## 画面（下タブ）
 
-ホーム / 話す（チャット）/ タスク / **かけら（会話のかけら）** / 設定
-※ owner モード（`?owner=true`）でのみ表示：予定・体調・プラン。
+ホーム / チャット / **整理（タスク・かけら・予定）** / 体調 / 設定
+※ プラン画面は設定内の導線から開きます。
 
 ## 実装状況（React移行フェーズ2 完了時点）
 
 **移植済み（全9画面）**：オンボーディング・ホーム・チャット（保存候補の提案→確認→保存／自動保存なし）・タスク・会話のかけら・予定・体調・プラン（課金モック）・設定。
-**次フェーズ**：Figma v2.1 準拠化（5タブ・整理統合など）、および「会話のかけら」基盤（元会話・日付・タグ保持＋永続化＋詳細＋タスク/予定変換）。
+**Figma v2.1対応済み**：5タブ化と「整理」へのタスク・会話のかけら・予定の統合。
+**次フェーズ**：「会話のかけら」基盤（元会話・日付・タグ保持＋永続化＋詳細＋タスク/予定変換）。
 
 ## データ
 
@@ -55,5 +56,5 @@ src/
   lib/      types.ts / repository.ts / constants.ts
   state/    AppContext.tsx          … 状態・アクション集約
   components/ TabBar / Toast / Modal / TodoModal / MemoModal / PlanModal / TodoItem / TopBits
-  screens/  Onboarding / Home / Chat / Todo / Memo / PlanList / Health / Plan / Settings
+  screens/  Onboarding / Home / Chat / Organize / Todo / Memo / PlanList / Health / Plan / Settings
 ```

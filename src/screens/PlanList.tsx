@@ -27,51 +27,68 @@ function scheduleComment(planItems: PlanItem[]): string {
   return fun ? `「${fun.text}楽しみだね。それまでにやること整えよ」` : '「今日の予定、一緒に確認しよ」'
 }
 
-export default function PlanList() {
+const CAT_LABELS: Record<PlanItem['cat'], string> = {
+  task: '📋 タスク',
+  fun: '✨ 推し活',
+  care: '🏥 ケア',
+  rest: '☕ 休憩',
+}
+
+export function PlanListContent() {
   const { planItems, deletePlanItem, openPlanModal, oshi } = useApp()
+  return (
+    <section className="organize-panel" aria-labelledby="organize-tab-schedule">
+      <button className="organize-add" onClick={() => openPlanModal()}>
+        ＋ 新しい予定を追加
+      </button>
+      {planItems.length === 0 ? (
+        <div className="empty organize-empty">まだ予定はありません</div>
+      ) : (
+        <div className="plan-list organize-schedule-list">
+          {planItems.map((item, index) => (
+            <article className="pi organize-schedule-card" key={`${item.text}-${item.time}-${index}`}>
+              <div className="pi-time">{item.time || '時間未定'}</div>
+              <div className="organize-schedule-body">
+                <div className="organize-schedule-title">{item.text}</div>
+                <span className={`organize-cat ${item.cat}`}>{CAT_LABELS[item.cat]}</span>
+              </div>
+              <div className="ti-acts">
+                <button className="btn-icon" onClick={() => openPlanModal(index)} aria-label={`${item.text}を編集`}>
+                  ✏️
+                </button>
+                <button className="btn-icon del" onClick={() => deletePlanItem(index)} aria-label={`${item.text}を削除`}>
+                  🗑
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <div className="oshi-schedule-comment">
+        <div className="osc-av">
+          {oshi.avatarImg ? <img src={oshi.avatarImg} alt="" /> : <span>🌙</span>}
+        </div>
+        <div className="osc-bubble">{scheduleComment(planItems)}</div>
+      </div>
+    </section>
+  )
+}
+
+export default function PlanList() {
+  const { openPlanModal } = useApp()
   return (
     <div className="screen on">
       <div className="topbar">
         <span className="topbar-title">今日の予定</span>
         <div className="topbar-right">
-          <button className="btn btn-primary btn-sm" onClick={openPlanModal}>
+          <button className="btn btn-primary btn-sm" onClick={() => openPlanModal()}>
             ＋追加
           </button>
           <ThemeButton />
         </div>
       </div>
       <div className="scroll">
-        <div className="card">
-          <div className="plan-list">
-            {planItems.length === 0 ? (
-              <div className="empty">まだ予定がないよ。＋で追加してみて。</div>
-            ) : (
-              planItems.map((p, i) => (
-                <div className="pi" key={i}>
-                  <div className={`pi-cat-dot ${p.cat}`} />
-                  {p.time && <div className="pi-time">{p.time}</div>}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: 'var(--text)' }}>{p.text}</div>
-                  </div>
-                  <button
-                    className="btn-icon del"
-                    onClick={() => deletePlanItem(i)}
-                    aria-label={`${p.text}を削除`}
-                    style={{ opacity: 0.5 }}
-                  >
-                    🗑
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        <div className="oshi-schedule-comment">
-          <div className="osc-av">
-            {oshi.avatarImg ? <img src={oshi.avatarImg} alt="" /> : <span>🌙</span>}
-          </div>
-          <div className="osc-bubble">{scheduleComment(planItems)}</div>
-        </div>
+        <PlanListContent />
       </div>
     </div>
   )

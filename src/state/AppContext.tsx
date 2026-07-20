@@ -19,6 +19,7 @@ import type {
   ExtractType,
   HealthLog,
   Memo,
+  OrganizeTab,
   Oshi,
   PlanCat,
   PlanItem,
@@ -51,6 +52,8 @@ interface AppState {
   toggleTheme: () => void
   screen: Screen
   setScreen: (s: Screen) => void
+  organizeTab: OrganizeTab
+  setOrganizeTab: (tab: OrganizeTab) => void
   obDone: boolean
   finishOnboarding: () => boolean
   // 推し
@@ -71,6 +74,7 @@ interface AppState {
   // 予定
   planItems: PlanItem[]
   addPlanItem: (text: string, time: string, cat: PlanCat) => boolean
+  editPlanItem: (idx: number, text: string, time: string, cat: PlanCat) => boolean
   deletePlanItem: (idx: number) => void
   // 体調
   healthLogs: HealthLog[]
@@ -97,8 +101,8 @@ interface AppState {
   memoModal: { open: boolean; editingIdx: number | null }
   openMemoModal: (idx?: number) => void
   closeMemoModal: () => void
-  planModal: { open: boolean }
-  openPlanModal: () => void
+  planModal: { open: boolean; editingIdx: number | null }
+  openPlanModal: (idx?: number) => void
   closePlanModal: () => void
   // 共通
   toast: string
@@ -122,6 +126,34 @@ function resolveOwner(): boolean {
 const systemTheme = (): Theme =>
   window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'
 
+interface RouteState {
+  screen: Screen
+  organizeTab: OrganizeTab
+}
+
+const ORGANIZE_TABS: readonly OrganizeTab[] = ['tasks', 'fragments', 'schedule']
+
+function readRoute(): RouteState {
+  const [route = '', subroute = ''] = window.location.hash.replace(/^#\/?/, '').split('/')
+  if (route === 'todo') return { screen: 'organize', organizeTab: 'tasks' }
+  if (route === 'memo') return { screen: 'organize', organizeTab: 'fragments' }
+  if (route === 'planlist') return { screen: 'organize', organizeTab: 'schedule' }
+  if (route === 'organize') {
+    const organizeTab = ORGANIZE_TABS.includes(subroute as OrganizeTab)
+      ? (subroute as OrganizeTab)
+      : 'tasks'
+    return { screen: 'organize', organizeTab }
+  }
+  if (route === 'chat' || route === 'health' || route === 'plan' || route === 'settings') {
+    return { screen: route, organizeTab: 'tasks' }
+  }
+  return { screen: 'home', organizeTab: 'tasks' }
+}
+
+function routeHash(screen: Screen, organizeTab: OrganizeTab): string {
+  return screen === 'organize' ? `#/organize/${organizeTab}` : `#/${screen}`
+}
+
 function getRes(text: string): { base: string; extract: Extract | null } {
   for (const r of RESPONSES) {
     if (r.trigger.some((t) => text.includes(t))) return { base: r.base, extract: r.extract }
@@ -141,13 +173,15 @@ function buildReply(base: string, tone: string, omamoriOn: boolean): string {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const owner = useMemo(resolveOwner, [])
+  const initialRoute = useMemo(readRoute, [])
 
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     () => repo.getTheme() ?? 'system',
   )
   const [systemThemeValue, setSystemThemeValue] = useState<Theme>(systemTheme)
   const theme: Theme = themePreference === 'system' ? systemThemeValue : themePreference
-  const [screen, setScreen] = useState<Screen>('home')
+  const [screen, setScreenState] = useState<Screen>(initialRoute.screen)
+  const [organizeTab, setOrganizeTabState] = useState<OrganizeTab>(initialRoute.organizeTab)
   const [obDone, setObDone] = useState<boolean>(() => repo.getOnboardingDone())
   const [oshi, setOshi] = useState<Oshi>(() => repo.getOshi() ?? DEFAULT_OSHI)
 
@@ -161,6 +195,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [inPeriod, setInPeriod] = useState<boolean>(() => repo.getInPeriod())
   const [omamoriOn, setOmamoriOn] = useState<boolean>(false)
   const [planTier, setPlanTier] = useState<PlanTier>(() => repo.getPlanTier())
+
+  const setScreen = useCallback(
+    (nextScreen: Screen) => {
+      if (nextScreen === screen) return
+      setScreenState(nextScreen)
+      window.history.pushState(null, '', routeHash(nextScreen, organizeTab))
+    },
+    [organizeTab, screen],
+  )
+
+  const setOrganizeTab = useCallback(
+    (nextTab: OrganizeTab) => {
+      if (screen === 'organize' && nextTab === organizeTab) return
+      setScreenState('organize')
+      setOrganizeTabState(nextTab)
+      window.history.pushState(null, '', routeHash('organize', nextTab))
+    },
+    [organizeTab, screen],
+  )
+
+  useEffect(() => {
+    const applyRoute = () => {
+      const next = readRoute()
+      const canonicalHash = routeHash(next.screen, next.organizeTab)
+      if (window.location.hash !== canonicalHash) {
+        window.history.replaceState(null, '', canonicalHash)
+      }
+      setScreenState(next.screen)
+      setOrganizeTabState(next.organizeTab)
+    }
+    const canonicalHash = routeHash(initialRoute.screen, initialRoute.organizeTab)
+    if (window.location.hash !== canonicalHash) {
+      window.history.replaceState(null, '', canonicalHash)
+    }
+    window.addEventListener('popstate', applyRoute)
+    window.addEventListener('hashchange', applyRoute)
+    return () => {
+      window.removeEventListener('popstate', applyRoute)
+      window.removeEventListener('hashchange', applyRoute)
+    }
+  }, [initialRoute])
 
   const [chatItems, setChatItems] = useState<ChatItem[]>(() => [
     { id: nextId(), kind: 'msg', role: 'oshi', text: '今日どんな感じ？気になってること、雑に投げていいよ。' },
@@ -184,9 +259,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openMemoModal = useCallback((idx?: number) => setMemoModal({ open: true, editingIdx: idx ?? null }), [])
   const closeMemoModal = useCallback(() => setMemoModal({ open: false, editingIdx: null }), [])
 
-  const [planModal, setPlanModal] = useState<{ open: boolean }>({ open: false })
-  const openPlanModal = useCallback(() => setPlanModal({ open: true }), [])
-  const closePlanModal = useCallback(() => setPlanModal({ open: false }), [])
+  const [planModal, setPlanModal] = useState<{ open: boolean; editingIdx: number | null }>({
+    open: false,
+    editingIdx: null,
+  })
+  const openPlanModal = useCallback(
+    (idx?: number) => setPlanModal({ open: true, editingIdx: idx ?? null }),
+    [],
+  )
+  const closePlanModal = useCallback(() => setPlanModal({ open: false, editingIdx: null }), [])
 
   // テーマ：documentElement に反映。永続化は切替時に成功を確認してから行う。
   useEffect(() => {
@@ -253,7 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setObDone(true)
     setScreen('settings')
     return true
-  }, [showStorageFailure])
+  }, [setScreen, showStorageFailure])
 
   const saveOshi = useCallback(
     (o: Oshi) => {
@@ -266,7 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.setTimeout(() => setScreen('home'), 700)
       return true
     },
-    [owner, showStorageFailure, showToast],
+    [owner, setScreen, showStorageFailure, showToast],
   )
 
   // アバターの即時プレビュー（保存は saveOshi 時。Vanilla版 onSetAv の挙動）
@@ -334,6 +415,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return true
     },
     [owner, planItems, showStorageFailure, showToast],
+  )
+  const editPlanItem = useCallback(
+    (idx: number, text: string, time: string, cat: PlanCat) => {
+      if (!planItems[idx]) return false
+      const next = planItems
+        .map((item, itemIdx) => (itemIdx === idx ? { text, time, cat } : item))
+        .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'))
+      if (!repo.setPlanItems(next)) {
+        showStorageFailure()
+        return false
+      }
+      setPlanItems(next)
+      return true
+    },
+    [planItems, showStorageFailure],
   )
   const deletePlanItem = useCallback(
     (idx: number) => {
@@ -491,6 +587,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTheme,
     screen,
     setScreen,
+    organizeTab,
+    setOrganizeTab,
     obDone,
     finishOnboarding,
     oshi,
@@ -507,6 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteMemo,
     planItems,
     addPlanItem,
+    editPlanItem,
     deletePlanItem,
     healthLogs,
     saveHealth,

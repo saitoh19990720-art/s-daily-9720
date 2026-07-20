@@ -7,7 +7,6 @@ import type { ReactNode } from 'react'
 interface Tab {
   key: Screen
   label: string
-  ownerOnly?: boolean
   icon: ReactNode
 }
 
@@ -19,11 +18,9 @@ const svg = (children: ReactNode) => (
 
 const TABS: Tab[] = [
   { key: 'home', label: 'ホーム', icon: svg(<><path d="M3 12L12 3l9 9" /><path d="M5 10v10h14V10" /></>) },
-  { key: 'chat', label: '話す', icon: svg(<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />) },
-  { key: 'todo', label: 'タスク', icon: svg(<><path d="M9 11l3 3 8-8" /><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9" /></>) },
-  { key: 'memo', label: 'かけら', icon: svg(<path d="M14 3v5h5M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V8l-6-5z" />) },
-  { key: 'planlist', label: '予定', ownerOnly: true, icon: svg(<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>) },
-  { key: 'health', label: '体調', ownerOnly: true, icon: svg(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />) },
+  { key: 'chat', label: 'チャット', icon: svg(<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />) },
+  { key: 'organize', label: '整理', icon: svg(<><path d="M3 6h6l2 2h10v11a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" /><path d="M3 10h18" /></>) },
+  { key: 'health', label: '体調', icon: svg(<path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 00-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 000-7.8z" />) },
   { key: 'settings', label: '設定', icon: svg(<circle cx="12" cy="12" r="3" />) },
 ]
 
@@ -31,17 +28,20 @@ export default function TabBar() {
   const { screen, setScreen } = useApp()
   return (
     <nav className="bnav" aria-label="メインナビゲーション">
-      {TABS.map((t) => (
-        <button
-          key={t.key}
-          className={`nb${t.ownerOnly ? ' owner-only' : ''}${screen === t.key ? ' on' : ''}`}
-          onClick={() => setScreen(t.key)}
-          aria-current={screen === t.key ? 'page' : undefined}
-        >
-          {t.icon}
-          <span className="nb-label">{t.label}</span>
-        </button>
-      ))}
+      {TABS.map((tab) => {
+        const active = screen === tab.key || (screen === 'plan' && tab.key === 'settings')
+        return (
+          <button
+            key={tab.key}
+            className={`nb${active ? ' on' : ''}`}
+            onClick={() => setScreen(tab.key)}
+            aria-current={active ? 'page' : undefined}
+          >
+            {tab.icon}
+            <span className="nb-label">{tab.label}</span>
+          </button>
+        )
+      })}
     </nav>
   )
 }

@@ -12,25 +12,29 @@ const CATS: { cat: PlanCat; icon: string; label: string }[] = [
 ]
 
 export default function PlanModal() {
-  const { planModal, closePlanModal, addPlanItem, showToast } = useApp()
-  const { open } = planModal
+  const { planModal, closePlanModal, planItems, addPlanItem, editPlanItem, showToast } = useApp()
+  const { open, editingIdx } = planModal
+  const editing = editingIdx !== null ? planItems[editingIdx] ?? null : null
   const [text, setText] = useState('')
   const [time, setTime] = useState('')
   const [cat, setCat] = useState<PlanCat>('fun')
 
   useEffect(() => {
     if (open) {
-      setText('')
-      setTime('')
-      setCat('fun')
+      setText(editing?.text ?? '')
+      setTime(editing?.time ?? '')
+      setCat(editing?.cat ?? 'fun')
     }
-  }, [open])
+  }, [editing, open])
 
   const save = () => {
     const t = text.trim()
     if (!t) return
-    if (addPlanItem(t, time, cat)) {
-      showToast('予定を追加 🗓')
+    const saved = editingIdx === null
+      ? addPlanItem(t, time, cat)
+      : editPlanItem(editingIdx, t, time, cat)
+    if (saved) {
+      showToast(editingIdx === null ? '予定を追加 🗓' : '予定を更新しました')
       closePlanModal()
     }
   }
@@ -39,7 +43,7 @@ export default function PlanModal() {
     <Modal
       open={open}
       onClose={closePlanModal}
-      title="予定を追加"
+      title={editing ? '予定を編集' : '予定を追加'}
       description="予定の内容、時間、カテゴリを入力します。"
     >
       <div className="f-group">
