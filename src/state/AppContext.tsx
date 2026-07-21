@@ -10,10 +10,11 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { DEFAULT_OSHI, repo } from '../lib/repository'
+import { DEFAULT_OSHI, FRAGMENT_SCHEMA_VERSION, repo } from '../lib/repository'
 import { DEFS, FREE_LIMITS, RESPONSES } from '../lib/constants'
 import { tokyoShortDate } from '../lib/date'
 import type {
+  ChatMsg,
   ChatRole,
   Extract,
   ExtractType,
@@ -32,16 +33,23 @@ import type {
 } from '../lib/types'
 
 let _seq = 0
+// チャット表示など、永続化しない一時要素用のID。
 const nextId = () => `id${++_seq}`
+
+let _rseq = 0
+// 永続化するタスク／かけら用のID。Date.now()で再読み込み後も衝突しないようにする
+// （リロードで _seq がリセットされても、保存済みIDと被らせない）。
+const makeRecordId = () => `r-${Date.now().toString(36)}-${(++_rseq).toString(36)}`
 
 export const STORAGE_FAILURE_MESSAGE =
   '保存できませんでした。空き容量やSafariの設定を確認して、もう一度お試しください。'
 
 // チャットの表示要素（メッセージ / 入力中 / 保存候補カード）
+// ext.source = 候補を生んだ元会話の最小スナップショット（かけら保存時に origin として引き継ぐ）。
 export type ChatItem =
   | { id: string; kind: 'msg'; role: ChatRole; text: string }
   | { id: string; kind: 'typing' }
-  | { id: string; kind: 'ext'; extract: Extract; state: 'open' | 'saved' }
+  | { id: string; kind: 'ext'; extract: Extract; state: 'open' | 'saved'; source?: ChatMsg[] }
 
 interface AppState {
   // 基本
@@ -63,13 +71,13 @@ interface AppState {
   // タスク
   todos: Todo[]
   addTodo: (text: string, due: string, prio: Prio) => boolean
-  editTodo: (id: string, text: string, due: string, prio: Prio) => void
+  editTodo: (id: string, text: string, due: string, prio: Prio) => boolean
   toggleTodo: (id: string) => void
   deleteTodo: (id: string) => void
   // 会話のかけら（内部名 memo）
   memos: Memo[]
   addMemo: (text: string) => boolean
-  editMemo: (idx: number, text: string) => void
+  editMemo: (idx: number, text: string) => boolean
   deleteMemo: (idx: number) => void
   // 予定
   planItems: PlanItem[]
@@ -104,6 +112,8 @@ interface AppState {
   planModal: { open: boolean; editingIdx: number | null }
   openPlanModal: (idx?: number) => void
   closePlanModal: () => void
+  // データ管理
+  resetRecordData: () => boolean
   // 共通
   toast: string
   showToast: (msg: string) => void
@@ -185,8 +195,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [obDone, setObDone] = useState<boolean>(() => repo.getOnboardingDone())
   const [oshi, setOshi] = useState<Oshi>(() => repo.getOshi() ?? DEFAULT_OSHI)
 
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [memos, setMemos] = useState<Memo[]>([])
+  const [todos, setTodos] = useState<Todo[]>(() => repo.getTodos())
+  const [memos, setMemos] = useState<Memo[]>(() => repo.getMemos())
   const [planItems, setPlanItems] = useState<PlanItem[]>(
     () => repo.getPlanItems() ?? (owner ? SAMPLE_PLANS : []),
   )
@@ -355,46 +365,121 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOshi((prev) => ({ ...prev, avatarImg: img }))
   }, [])
 
-  // タスク（Vanilla版と同じくセッション内保持。永続化は会話のかけら基盤フェーズで対応）
+  // タスク（③-B-1で永続化）。追加・編集・完了・削除いずれも「保存成功後だけ」stateを更新する。
+  // 保存はRepository層に集約し、state updater内でlocalStorageや別stateを触らない。
   const addTodo = useCallback(
     (text: string, due: string, prio: Prio) => {
       if (omamoriOn && todos.length >= 3) {
         showToast('お守りモード中。3つまで 🧿')
         return false
       }
-      setTodos([...todos, { id: nextId(), text, done: false, due, prio }])
+      const now = new Date().toISOString()
+      const next = [...todos, { id: makeRecordId(), text, done: false, due, prio, createdAt: now, updatedAt: now }]
+      if (!repo.setTodos(next)) {
+        showStorageFailure()
+        return false
+      }
+      setTodos(next)
       return true
     },
-    [omamoriOn, showToast, todos],
+    [omamoriOn, showStorageFailure, showToast, todos],
   )
-  const editTodo = useCallback((id: string, text: string, due: string, prio: Prio) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, text, due, prio } : t)))
-  }, [])
-  const toggleTodo = useCallback((id: string) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)))
-  }, [])
+  const editTodo = useCallback(
+    (id: string, text: string, due: string, prio: Prio) => {
+      if (!todos.some((t) => t.id === id)) return false
+      const next = todos.map((t) =>
+        t.id === id ? { ...t, text, due, prio, updatedAt: new Date().toISOString() } : t,
+      )
+      if (!repo.setTodos(next)) {
+        showStorageFailure()
+        return false
+      }
+      setTodos(next)
+      return true
+    },
+    [showStorageFailure, todos],
+  )
+  const toggleTodo = useCallback(
+    (id: string) => {
+      if (!todos.some((t) => t.id === id)) return
+      const next = todos.map((t) =>
+        t.id === id ? { ...t, done: !t.done, updatedAt: new Date().toISOString() } : t,
+      )
+      // 即時操作でも保存に失敗したら画面は変えない（成功扱いにしない）。
+      if (!repo.setTodos(next)) {
+        showStorageFailure()
+        return
+      }
+      setTodos(next)
+    },
+    [showStorageFailure, todos],
+  )
   const deleteTodo = useCallback(
     (id: string) => {
-      setTodos((prev) => prev.filter((t) => t.id !== id))
+      if (!todos.some((t) => t.id === id)) return
+      const next = todos.filter((t) => t.id !== id)
+      if (!repo.setTodos(next)) {
+        showStorageFailure()
+        return
+      }
+      setTodos(next)
       showToast('削除したよ')
     },
-    [showToast],
+    [showStorageFailure, showToast, todos],
   )
 
-  // 会話のかけら（memo）
-  const addMemo = useCallback((text: string) => {
-    setMemos((prev) => [{ text, date: tokyoShortDate() }, ...prev])
-    return true
-  }, [])
-  const editMemo = useCallback((idx: number, text: string) => {
-    setMemos((prev) => prev.map((m, i) => (i === idx ? { ...m, text } : m)))
-  }, [])
+  // 会話のかけら（memo）。③-B-1で永続化＋バージョン付き構造。手入力は source='manual'／origin=[]。
+  const addMemo = useCallback(
+    (text: string) => {
+      const now = new Date()
+      const memo: Memo = {
+        id: makeRecordId(),
+        text,
+        date: tokyoShortDate(now),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        source: 'manual',
+        origin: [],
+        tags: [],
+        schemaVersion: FRAGMENT_SCHEMA_VERSION,
+      }
+      const next = [memo, ...memos]
+      if (!repo.setMemos(next)) {
+        showStorageFailure()
+        return false
+      }
+      setMemos(next)
+      return true
+    },
+    [memos, showStorageFailure],
+  )
+  const editMemo = useCallback(
+    (idx: number, text: string) => {
+      if (!memos[idx]) return false
+      const next = memos.map((m, i) =>
+        i === idx ? { ...m, text, updatedAt: new Date().toISOString() } : m,
+      )
+      if (!repo.setMemos(next)) {
+        showStorageFailure()
+        return false
+      }
+      setMemos(next)
+      return true
+    },
+    [memos, showStorageFailure],
+  )
   const deleteMemo = useCallback(
     (idx: number) => {
-      setMemos((prev) => prev.filter((_, i) => i !== idx))
+      if (!memos[idx]) return
+      const next = memos.filter((_, i) => i !== idx)
+      if (!repo.setMemos(next)) {
+        showStorageFailure()
+        return
+      }
+      setMemos(next)
       showToast('削除したよ')
     },
-    [showToast],
+    [memos, showStorageFailure, showToast],
   )
 
   // 予定（永続化）
@@ -522,10 +607,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ])
         if (res.extract) {
           const ex = res.extract
+          // 候補を生んだ元会話（ユーザー発言＋AI応答）だけをスナップショットとして保持する。
+          const snapshot: ChatMsg[] = [
+            { role: 'user', content: trimmed },
+            { role: 'oshi', content: reply },
+          ]
           window.setTimeout(() => {
             setChatItems((prev) => [
               ...prev,
-              { id: nextId(), kind: 'ext', extract: ex, state: 'open' },
+              { id: nextId(), kind: 'ext', extract: ex, state: 'open', source: snapshot },
             ])
           }, 300)
         }
@@ -552,12 +642,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setPlanItems(next)
       } else if (type === 'todo') {
-        setTodos((current) => [
-          ...current,
-          { id: nextId(), text, done: false, due: '', prio: 'low' },
-        ])
+        const now = new Date().toISOString()
+        const next = [
+          ...todos,
+          { id: makeRecordId(), text, done: false, due: '', prio: 'low' as Prio, createdAt: now, updatedAt: now },
+        ]
+        if (!repo.setTodos(next)) {
+          savingCandidates.current.delete(id)
+          showStorageFailure()
+          return
+        }
+        setTodos(next)
       } else {
-        setMemos((current) => [{ text, date: tokyoShortDate() }, ...current])
+        const now = new Date()
+        const memo: Memo = {
+          id: makeRecordId(),
+          text,
+          date: tokyoShortDate(now),
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+          source: 'chat',
+          // 元会話の最小スナップショット（無ければ空）。参照IDだけにしない。
+          origin: item.source ?? [],
+          tags: [],
+          schemaVersion: FRAGMENT_SCHEMA_VERSION,
+        }
+        const next = [memo, ...memos]
+        if (!repo.setMemos(next)) {
+          savingCandidates.current.delete(id)
+          showStorageFailure()
+          return
+        }
+        setMemos(next)
       }
 
       setChatItems((current) =>
@@ -573,11 +689,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         savingCandidates.current.delete(id)
       }, 500)
     },
-    [chatItems, planItems, showStorageFailure, showToast],
+    [chatItems, memos, planItems, showStorageFailure, showToast, todos],
   )
   const skipCandidate = useCallback((id: string) => {
     setChatItems((prev) => prev.filter((it) => it.id !== id))
   }, [])
+
+  // データ初期化（記録データ）：タスク/かけら/予定/体調をまとめて消す。
+  // 全削除が成功したときだけ画面stateを初期状態へ戻す（＝リロード直後と同じ見え方）。
+  // 途中失敗はRepositoryがロールバックし false を返すので、成功表示・state変更をしない。
+  const resetRecordData = useCallback(() => {
+    if (!repo.resetRecordData()) {
+      showStorageFailure()
+      return false
+    }
+    setTodos([])
+    setMemos([])
+    setPlanItems(owner ? SAMPLE_PLANS : [])
+    setHealthLogs([])
+    setPeriodStart(null)
+    setInPeriod(false)
+    showToast('記録データを初期化しました')
+    return true
+  }, [owner, showStorageFailure, showToast])
 
   const value: AppState = {
     owner,
@@ -621,6 +755,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sendChat,
     saveCandidate,
     skipCandidate,
+    resetRecordData,
     todoModal,
     openTodoModal,
     closeTodoModal,

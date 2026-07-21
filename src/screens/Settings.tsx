@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { ThemeButton } from '../components/TopBits'
+import Modal from '../components/Modal'
 
 const RELATIONS = ['推し', '相棒', '恋人未満', '恋人', '友達', '先輩', '執事・メイド', '創作キャラ']
 const TONES = ['やさしい', 'クール', '甘い', 'ツンデレ', '明るい', '無口', '丁寧']
@@ -15,8 +16,14 @@ const MODES = [
 ]
 
 export default function Settings() {
-  const { oshi, saveOshi, previewAvatar, showToast, setScreen } = useApp()
+  const { oshi, saveOshi, previewAvatar, showToast, setScreen, resetRecordData } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+
+  const onReset = () => {
+    // 成功時のみモーダルを閉じる。失敗時はresetRecordData側でエラー通知を出し、Modalは開いたまま。
+    if (resetRecordData()) setConfirmReset(false)
+  }
 
   const [name, setName] = useState(oshi.name)
   const [callname, setCallname] = useState(oshi.callname)
@@ -243,7 +250,38 @@ export default function Settings() {
         <button className="btn btn-primary btn-full" onClick={save} style={{ marginBottom: 8 }}>
           この推しで設定する
         </button>
+
+        <div className="card">
+          <div className="card-title">データ管理</div>
+          <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+            タスク・会話のかけら・予定・体調の記録をすべて消して初期状態に戻します。推しの設定やテーマは残ります。
+          </p>
+          <button type="button" className="btn btn-danger btn-full" onClick={() => setConfirmReset(true)}>
+            記録データを初期化
+          </button>
+        </div>
       </div>
+
+      <Modal
+        open={confirmReset}
+        onClose={() => setConfirmReset(false)}
+        title="記録データを初期化しますか？"
+        description="タスク・会話のかけら・予定・体調の記録をすべて削除します。この操作は取り消せません。"
+      >
+        <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.8 }}>
+          タスク・会話のかけら・予定・体調の記録をすべて削除します。
+          <br />
+          この操作は取り消せません。
+        </p>
+        <div className="modal-acts">
+          <button className="btn btn-ghost" onClick={() => setConfirmReset(false)}>
+            キャンセル
+          </button>
+          <button className="btn btn-danger" onClick={onReset}>
+            削除する
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

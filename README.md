@@ -29,13 +29,14 @@ npm run dev      # http://localhost:5173
 
 **移植済み（全9画面）**：オンボーディング・ホーム・チャット（保存候補の提案→確認→保存／自動保存なし）・タスク・会話のかけら・予定・体調・プラン（課金モック）・設定。
 **Figma v2.1対応済み**：5タブ化と「整理」へのタスク・会話のかけら・予定の統合。
-**次フェーズ**：「会話のかけら」基盤（元会話・日付・タグ保持＋永続化＋詳細＋タスク/予定変換）。
+**③-B-1対応済み**：タスク・会話のかけらの永続化、保存元と必要最小限の元会話保持、保存失敗時のデータ保護。
+**次フェーズ（③-B-2）**：会話のかけらの詳細・タグ編集・タスク/予定変換UI。
 
 ## データ
 
-- 保存先：ブラウザの `localStorage`。キーは Vanilla 版と同一（`oshi` / `theme` / `planItems` / `hlogs` / `pstart` / `pin` / `plan` / `obdone` / `oshi-os-owner`）。
+- 保存先：ブラウザの `localStorage`。Vanilla版の既存キー（`oshi` / `theme` / `planItems` / `hlogs` / `pstart` / `pin` / `plan` / `obdone` / `oshi-os-owner`）は変更せず、新規に `oshi-os:v1:todos` / `oshi-os:v1:fragments` を使用します。
 - 永続化は `src/lib/repository.ts`（Repository層）に集約。将来 Supabase 等へ差し替え可能。
-- タスク・会話のかけらは Vanilla 版と同じくセッション内保持（永続化は「会話のかけら基盤」フェーズで対応）。
+- タスク・会話のかけらは `{ schemaVersion: 1, records: [...] }` 形式で保存し、破損・不正レコードは読み込み時に安全に除外します。
 - 秘密情報（パスワード・トークン等）は保存しません。
 
 ## 技術

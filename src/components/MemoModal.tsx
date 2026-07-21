@@ -19,14 +19,17 @@ export default function MemoModal() {
     const val = text.trim()
     if (!val) return
     if (editingIdx !== null) {
-      editMemo(editingIdx, val)
-    } else {
-      if (!checkLimit('memo', memos.length)) {
-        closeMemoModal()
-        return
-      }
-      addMemo(val)
+      // 保存失敗時はモーダルを閉じず入力も残す（成功toastも出さない）。
+      if (!editMemo(editingIdx, val)) return
+      showToast('会話のかけらに残しました')
+      closeMemoModal()
+      return
     }
+    if (!checkLimit('memo', memos.length)) {
+      closeMemoModal()
+      return
+    }
+    if (!addMemo(val)) return
     showToast('会話のかけらに残しました')
     closeMemoModal()
   }

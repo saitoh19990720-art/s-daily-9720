@@ -39,15 +39,18 @@ export default function TodoModal() {
     const val = text.trim()
     if (!val) return
     if (editing) {
-      editTodo(editing.id, val, dateVal, prio)
+      // 保存失敗時はモーダルを閉じず入力も残す（成功toastも出さない）。
+      if (!editTodo(editing.id, val, dateVal, prio)) return
       showToast('編集したよ 📋')
-    } else {
-      if (!checkLimit('todo', todos.length)) {
-        closeTodoModal()
-        return
-      }
-      if (addTodo(val, dateVal, prio)) showToast('タスクに追加 📋')
+      closeTodoModal()
+      return
     }
+    if (!checkLimit('todo', todos.length)) {
+      closeTodoModal()
+      return
+    }
+    if (!addTodo(val, dateVal, prio)) return
+    showToast('タスクに追加 📋')
     closeTodoModal()
   }
 

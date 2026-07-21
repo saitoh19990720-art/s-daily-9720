@@ -3,6 +3,7 @@ import { StrictMode, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PlanModal from '../components/PlanModal'
+import TodoModal from '../components/TodoModal'
 import Toast from '../components/Toast'
 import { AppProvider, STORAGE_FAILURE_MESSAGE, useApp } from './AppContext'
 
@@ -12,12 +13,21 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 let app: AppApi
 
-function Probe({ withPlanModal = false, withToast = false }: { withPlanModal?: boolean; withToast?: boolean }) {
+function Probe({
+  withPlanModal = false,
+  withTodoModal = false,
+  withToast = false,
+}: {
+  withPlanModal?: boolean
+  withTodoModal?: boolean
+  withToast?: boolean
+}) {
   app = useApp()
   return (
     <>
       <div data-testid="toast">{app.toast}</div>
       {withPlanModal && <PlanModal />}
+      {withTodoModal && <TodoModal />}
       {withToast && <Toast />}
     </>
   )
@@ -123,6 +133,235 @@ describe('AppProviderの保存境界', () => {
     act(() => saveButton?.click())
     expect(container?.querySelector('.modal-overlay.open')).toBeNull()
     expect(app.planItems).toEqual([{ text: '病院へ行く', time: '', cat: 'fun' }])
+  })
+})
+
+// リロード相当＝アンマウント後に新しいAppProviderを描画（localStorageは保持）。
+function reload(ui: React.ReactNode) {
+  if (root) act(() => root?.unmount())
+  container?.remove()
+  renderProbe(ui)
+}
+
+describe('タスク・会話のかけらの永続化（③-B-1）', () => {
+  it('タスク追加・編集・完了・削除が再読み込み相当で復元する', () => {
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    // 各操作の間に再描画が入る実利用に合わせ、追加は別actで行う。
+    act(() => app.addTodo('メールを返す', '', 'low'))
+    act(() => app.addTodo('作業する', '', 'high'))
+    const first = app.todos[0].id
+
+    reload(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    expect(app.todos.map((t) => t.text)).toEqual(['メールを返す', '作業する'])
+    expect(app.todos[0].createdAt).toBeTruthy()
+
+    act(() => app.toggleTodo(first))
+    act(() => app.editTodo(app.todos[1].id, '読書する', '', 'mid'))
+    act(() => app.deleteTodo(first))
+
+    reload(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    expect(app.todos).toHaveLength(1)
+    expect(app.todos[0].text).toBe('読書する')
+    expect(app.todos[0].prio).toBe('mid')
+  })
+
+  it('会話のかけらは保存ボタンを押す前は保存されず、明示保存後に元会話と保存元付きで復元する', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    act(() => app.sendChat('この内容をメモに残して'))
+    act(() => vi.advanceTimersByTime(601))
+    act(() => vi.advanceTimersByTime(301))
+    // まだ保存されていない
+    expect(app.memos).toHaveLength(0)
+    expect(localStorage.getItem('oshi-os:v1:fragments')).toBeNull()
+
+    const candidate = app.chatItems.find((item) => item.kind === 'ext')
+    act(() => app.saveCandidate(candidate!.id))
+
+    reload(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    expect(app.memos).toHaveLength(1)
+    expect(app.memos[0].text).toBe('会話メモ')
+    expect(app.memos[0].source).toBe('chat')
+    expect(app.memos[0].origin).toEqual([
+      { role: 'user', content: 'この内容をメモに残して' },
+      { role: 'oshi', content: expect.any(String) },
+    ])
+    expect(app.memos[0].schemaVersion).toBe(1)
+  })
+
+  it('タスク保存失敗時は入力・Modal・stateを保持し、再試行で1件だけ保存する', () => {
+    const originalSetItem = Storage.prototype.setItem
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key === 'oshi-os:v1:todos') throw new DOMException('Quota exceeded', 'QuotaExceededError')
+        return originalSetItem.call(this, key, value)
+      })
+    renderProbe(
+      <AppProvider>
+        <Probe withTodoModal />
+      </AppProvider>,
+    )
+    act(() => app.openTodoModal())
+    const input = container?.querySelector<HTMLInputElement>('[role="dialog"] input[type="text"]')
+    setInputValue(input!, 'メールを返す')
+    const saveButton = [...(container?.querySelectorAll<HTMLButtonElement>('.modal-acts button') ?? [])].find(
+      (button) => button.textContent === '保存',
+    )
+    act(() => saveButton?.click())
+
+    // 失敗：入力保持・Modal維持・state変更なし・エラー通知
+    expect(input?.value).toBe('メールを返す')
+    expect(container?.querySelector('.modal-overlay.open')).not.toBeNull()
+    expect(app.todos).toEqual([])
+    expect(localStorage.getItem('oshi-os:v1:todos')).toBeNull()
+    expect(app.toast).toBe(STORAGE_FAILURE_MESSAGE)
+
+    // 再試行：成功で1件だけ
+    setItemSpy.mockImplementation(function (this: Storage, key, value) {
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => saveButton?.click())
+    expect(container?.querySelector('.modal-overlay.open')).toBeNull()
+    expect(app.todos).toHaveLength(1)
+    expect(app.todos[0].text).toBe('メールを返す')
+  })
+
+  it('同じ会話候補を連打しても重複せず、失敗後の再試行は1件だけ保存する', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const originalSetItem = Storage.prototype.setItem
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key === 'oshi-os:v1:fragments') throw new DOMException('Quota exceeded', 'QuotaExceededError')
+        return originalSetItem.call(this, key, value)
+      })
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    act(() => app.sendChat('この内容をメモに残して'))
+    act(() => vi.advanceTimersByTime(601))
+    act(() => vi.advanceTimersByTime(301))
+    const candidate = app.chatItems.find((item) => item.kind === 'ext')
+
+    // 失敗：保存されない
+    act(() => app.saveCandidate(candidate!.id))
+    expect(app.memos).toHaveLength(0)
+    expect(app.toast).toBe(STORAGE_FAILURE_MESSAGE)
+
+    // 復旧して連打しても1件だけ
+    setItemSpy.mockImplementation(function (this: Storage, key, value) {
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => {
+      app.saveCandidate(candidate!.id)
+      app.saveCandidate(candidate!.id)
+    })
+    expect(app.memos).toHaveLength(1)
+  })
+
+  it('候補表示後に別経路で追加したタスク・かけらを候補保存で失わない', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+
+    act(() => app.sendChat('この内容をメモに残して'))
+    act(() => vi.advanceTimersByTime(601))
+    act(() => vi.advanceTimersByTime(301))
+    const memoCandidate = app.chatItems.find((item) => item.kind === 'ext')
+    act(() => app.addMemo('手動で追加したかけら'))
+    act(() => app.saveCandidate(memoCandidate!.id))
+    expect(app.memos.map((memo) => memo.text)).toEqual(['会話メモ', '手動で追加したかけら'])
+
+    act(() => app.sendChat('メールを返信する'))
+    act(() => vi.advanceTimersByTime(601))
+    act(() => vi.advanceTimersByTime(301))
+    const todoCandidate = app.chatItems.find(
+      (item) => item.kind === 'ext' && item.extract.type === 'todo',
+    )
+    act(() => app.addTodo('手動で追加したタスク', '', 'low'))
+    act(() => app.saveCandidate(todoCandidate!.id))
+    expect(app.todos.map((todo) => todo.text)).toEqual(['手動で追加したタスク', '返信タスク'])
+  })
+
+  it('データ初期化は新キーを消し、推し設定・テーマは残す', () => {
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    act(() => {
+      app.addTodo('タスク', '', 'low')
+      app.addMemo('かけら')
+      app.saveOshi({ ...app.oshi, name: 'あかり' })
+    })
+    expect(localStorage.getItem('oshi-os:v1:todos')).not.toBeNull()
+    expect(localStorage.getItem('oshi-os:v1:fragments')).not.toBeNull()
+
+    let ok = false
+    act(() => {
+      ok = app.resetRecordData()
+    })
+    expect(ok).toBe(true)
+    expect(app.todos).toEqual([])
+    expect(app.memos).toEqual([])
+    expect(localStorage.getItem('oshi-os:v1:todos')).toBeNull()
+    expect(localStorage.getItem('oshi-os:v1:fragments')).toBeNull()
+    // 設定系は保持
+    expect(localStorage.getItem('oshi')).not.toBeNull()
+    expect(app.oshi.name).toBe('あかり')
+  })
+
+  it('タスク・かけら操作で既存キー（planItems / hlogs / theme）は変化しない', () => {
+    renderProbe(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    act(() => {
+      app.addPlanItem('作業', '10:00', 'task')
+      app.saveHealth({ date: '07/21', mood: '😊', pain: 'なし', tags: '', memo: '元気', period: false })
+    })
+    const planBefore = localStorage.getItem('planItems')
+    const healthBefore = localStorage.getItem('hlogs')
+    const themeBefore = localStorage.getItem('theme')
+
+    act(() => {
+      app.addTodo('タスク', '', 'low')
+      app.addMemo('かけら')
+    })
+
+    expect(localStorage.getItem('planItems')).toBe(planBefore)
+    expect(localStorage.getItem('hlogs')).toBe(healthBefore)
+    expect(localStorage.getItem('theme')).toBe(themeBefore)
   })
 })
 

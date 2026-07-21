@@ -26,13 +26,27 @@ export interface Todo {
   done: boolean
   due: string
   prio: Prio
+  // ③-B-1で追加。既存レコード（未保持）でも壊れないよう任意扱い＝後方互換。
+  createdAt?: string
+  updatedAt?: string
 }
 
-// 会話のかけら（内部名は memo のまま）。移行段では本文+日付のみ（Vanilla版と同一）。
-// 元会話・任意タグの保持は次フェーズ（会話のかけら基盤）で拡張する。
+// 会話のかけらの保存元。chat=会話から保存 / manual=手入力。
+export type MemoSource = 'chat' | 'manual'
+
+// 会話のかけら（内部名は memo のまま＝しずくの明示決定）。
+// ③-B-1でバージョン付き構造へ拡張。`date` は表示用の短い日付で、既存UI（Memo画面）の後方互換のため残す。
+// `origin` は元会話の最小スナップショット（候補生成に関わるユーザー発言とAI応答のみ。履歴全件は複製しない）。
 export interface Memo {
+  id: string
   text: string
   date: string
+  createdAt: string
+  updatedAt: string
+  source: MemoSource
+  origin: ChatMsg[]
+  tags: string[]
+  schemaVersion: number
 }
 
 export type PlanCat = 'task' | 'fun' | 'care' | 'rest'
