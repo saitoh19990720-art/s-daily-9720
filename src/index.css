@@ -94,7 +94,41 @@ button.card{width:100%;color:var(--text);font-family:inherit;text-align:left;}
 .organize-fragment-list{display:flex;flex-direction:column;gap:10px;}
 .organize-fragment-card{margin:0;padding:16px;}
 .organize-card-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;margin-bottom:8px;}
-.organize-fragment-card .memo-badge{margin-top:10px;margin-bottom:0;}
+.organize-fragment-card .memo-badge{margin-top:0;margin-bottom:0;}
+/* かけらカードをボタン化（タップで詳細）。card見た目を保ちつつ左寄せ・全幅。 */
+.fragment-card-btn{display:block;width:100%;text-align:left;cursor:pointer;font-family:inherit;color:inherit;}
+.fragment-card-btn:hover{border-color:var(--accent-s);}
+.fragment-card-foot{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.fragment-card-tags{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.fragment-card-more{font-size:10px;color:var(--muted);}
+
+/* かけら詳細モーダル */
+.fd{display:flex;flex-direction:column;gap:16px;}
+.fd-section{display:flex;flex-direction:column;gap:8px;}
+.fd-label{font-size:11px;font-weight:600;color:var(--soft);letter-spacing:.02em;}
+.fd-text{font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word;margin:0;}
+.fd-empty{font-size:12px;color:var(--soft);font-style:italic;margin:0;}
+.fd-tags{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0;}
+.fd-tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text);background:var(--accent-p);border:1px solid var(--accent-s);border-radius:14px;padding:4px 10px;}
+.fd-tag-sm{font-size:10px;padding:2px 8px;}
+.fd-tag-remove{min-width:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--muted);font-size:15px;line-height:1;cursor:pointer;border-radius:12px;padding:0;}
+.fd-tag-remove:hover{color:var(--danger);}
+.fd-tags-edit .fd-tag{padding:4px 6px 4px 10px;}
+.fd-tag-add{display:flex;gap:8px;align-items:stretch;}
+.fd-tag-add .f-input{flex:1;min-width:0;}
+.fd-tag-add .btn{flex:0 0 auto;}
+.fd-meta{display:flex;flex-direction:column;gap:6px;margin:0;}
+.fd-meta-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;}
+.fd-meta-row dt{color:var(--soft);}
+.fd-meta-row dd{margin:0;color:var(--text);text-align:right;}
+.fd-source{display:inline-flex;align-items:center;gap:5px;}
+/* 元会話：本文と明確に区別（枠・背景・話者ラベル）。色だけに依存しない。 */
+.fd-origin{list-style:none;display:flex;flex-direction:column;gap:8px;padding:10px;margin:0;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
+.fd-origin-msg{display:flex;flex-direction:column;gap:2px;}
+.fd-origin-who{font-size:10px;font-weight:600;color:var(--soft);}
+.fd-origin-msg.user .fd-origin-who{color:var(--accent);}
+.fd-origin-text{font-size:12.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+.fd-confirm-text{font-size:13px;line-height:1.8;color:var(--text);margin:0;}
 .organize-fab{position:sticky;bottom:12px;margin:0 0 0 auto;width:56px;height:56px;flex:0 0 56px;border:0;border-radius:50%;background:linear-gradient(135deg,var(--accent-action),var(--accent-action-2));color:white;font-size:28px;line-height:1;box-shadow:0 4px 14px rgba(35,109,136,.38);cursor:pointer;z-index:2;}
 .organize-schedule-list{gap:10px;}
 .organize-schedule-card{min-height:64px;padding:10px 8px 10px 12px;}

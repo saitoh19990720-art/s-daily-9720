@@ -143,3 +143,188 @@ describe('Figma v2.1の5タブと整理画面', () => {
     ])
   })
 })
+
+// ③-B-2：かけら詳細・編集・タグ・破棄確認・削除確認
+const SEED_MEMO = {
+  id: 'r-seed',
+  text: '残しておきたい会話',
+  date: '07/21',
+  createdAt: '2026-07-21T00:00:00.000Z',
+  updatedAt: '2026-07-21T00:00:00.000Z',
+  source: 'chat' as const,
+  origin: [
+    { role: 'user' as const, content: '今日つらい' },
+    { role: 'oshi' as const, content: 'おつかれさま' },
+  ],
+  tags: ['気分'],
+  schemaVersion: 1,
+}
+
+function seedFragment(memo: unknown = SEED_MEMO) {
+  localStorage.setItem('oshi-os:v1:fragments', JSON.stringify({ schemaVersion: 1, records: [memo] }))
+}
+
+function detailCard(): HTMLButtonElement {
+  const card = container?.querySelector<HTMLButtonElement>('[aria-label$="の詳細を開く"]')
+  if (!card) throw new Error('detail card not found')
+  return card
+}
+
+describe('会話のかけらの詳細（③-B-2）', () => {
+  it('カードから詳細を開き、本文・保存元・元会話・タグ・日時を表示する', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+
+    const dialog = container!.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('残しておきたい会話')
+    expect(dialog.textContent).toContain('会話から')
+    expect(dialog.textContent).toContain('気分') // タグ
+    expect(dialog.textContent).toContain('あなた') // 元会話ラベル
+    expect(dialog.textContent).toContain('今日つらい') // ユーザー発言
+    expect(dialog.textContent).toContain('おつかれさま') // AI応答
+    expect(dialog.textContent).toContain('2026/07/21') // 日時
+  })
+
+  it('本文を編集して保存すると反映され、localStorageへ永続化される', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('編集').click())
+
+    const textarea = container!.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
+    setFormValue(textarea, '書き直した本文')
+    act(() => button('保存').click())
+
+    expect(container?.textContent).toContain('書き直した本文')
+    const saved = JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}')
+    expect(saved.records[0].text).toBe('書き直した本文')
+    expect(saved.records[0].id).toBe('r-seed')
+    expect(saved.records[0].createdAt).toBe('2026-07-21T00:00:00.000Z')
+    expect(saved.records[0].origin).toHaveLength(2)
+  })
+
+  it('タグを追加・削除できる', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('編集').click())
+
+    const tagInput = container!.querySelector<HTMLInputElement>('#fd-tag-input')!
+    setFormValue(tagInput, '推し活')
+    act(() => button('追加').click())
+    expect(container?.querySelector('[role="dialog"]')?.textContent).toContain('推し活')
+
+    // 追加した「推し活」を削除
+    const removeBtn = container!.querySelector<HTMLButtonElement>('[aria-label="タグ「推し活」を削除"]')!
+    act(() => removeBtn.click())
+    expect(container!.querySelector('[aria-label="タグ「推し活」を削除"]')).toBeNull()
+  })
+
+  it('既存の重複タグを開いただけでは未保存変更と判定せず、Reactの重複key警告も出さない', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    seedFragment({ ...SEED_MEMO, tags: ['気分', '気分'] })
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('編集').click())
+    act(() => button('キャンセル').click())
+
+    expect(container?.textContent).not.toContain('変更を破棄しますか？')
+    expect(consoleError).not.toHaveBeenCalled()
+  })
+
+  it('タグ上限時に未追加タグを黙って捨てず、編集内容とModalを維持する', () => {
+    const tags = Array.from({ length: 10 }, (_, index) => `tag${index}`)
+    seedFragment({ ...SEED_MEMO, tags })
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('編集').click())
+
+    const tagInput = container!.querySelector<HTMLInputElement>('#fd-tag-input')!
+    setFormValue(tagInput, '追加できないタグ')
+    act(() => button('保存').click())
+
+    expect(container!.querySelector<HTMLTextAreaElement>('#fd-edit-text')).not.toBeNull()
+    expect(container!.querySelector<HTMLInputElement>('#fd-tag-input')?.value).toBe('追加できないタグ')
+    expect(container?.textContent).toContain('タグは10個までにしてね')
+  })
+
+  it('更新保存失敗時は入力・編集Modal・保存済みデータを維持し、成功通知を出さない', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('編集').click())
+    const textarea = container!.querySelector<HTMLTextAreaElement>('#fd-edit-text')!
+    setFormValue(textarea, '保存に失敗する編集内容')
+
+    const originalSetItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === 'oshi-os:v1:fragments') throw new DOMException('quota', 'QuotaExceededError')
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => button('保存').click())
+
+    expect(container!.querySelector<HTMLTextAreaElement>('#fd-edit-text')?.value).toBe('保存に失敗する編集内容')
+    expect(container?.querySelector('[role="dialog"] .modal-title')?.textContent).toBe('かけらを編集')
+    expect(JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records[0].text).toBe(SEED_MEMO.text)
+    expect(container?.textContent).toContain('保存できませんでした')
+    expect(container?.textContent).not.toContain('会話のかけらを更新しました')
+  })
+
+  it('未保存変更がある時だけ破棄確認を出し、破棄で元の本文へ戻す', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+
+    // 変更なしで編集→キャンセル：破棄確認は出ない
+    act(() => button('編集').click())
+    act(() => button('キャンセル').click())
+    expect(container?.textContent).not.toContain('変更を破棄しますか？')
+
+    // 変更あり→キャンセル：破棄確認
+    act(() => button('編集').click())
+    const textarea = container!.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
+    setFormValue(textarea, 'まだ保存しない変更')
+    act(() => button('キャンセル').click())
+    expect(container?.textContent).toContain('変更を破棄しますか？')
+
+    act(() => button('破棄する').click())
+    expect(container?.textContent).toContain('残しておきたい会話')
+    expect(container?.textContent).not.toContain('まだ保存しない変更')
+  })
+
+  it('削除は確認後にだけ実行され、カードが消える', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+
+    act(() => button('削除').click())
+    expect(container?.textContent).toContain('このかけらを削除しますか？')
+    // まだ消えていない
+    expect(JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records).toHaveLength(1)
+
+    act(() => button('削除する').click())
+    expect(container?.querySelector('[aria-label$="の詳細を開く"]')).toBeNull()
+    expect(container?.textContent).toContain('まだ残した会話のかけらはありません')
+    expect(JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records).toHaveLength(0)
+  })
+
+  it('削除保存失敗時は詳細・保存済みデータを維持し、成功通知を出さない', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => button('削除').click())
+
+    const originalSetItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === 'oshi-os:v1:fragments') throw new DOMException('denied', 'SecurityError')
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => button('削除する').click())
+
+    expect(container?.querySelector('[role="dialog"] .modal-title')?.textContent).toBe('かけらの詳細')
+    expect(JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records).toHaveLength(1)
+    expect(container?.textContent).toContain('保存できませんでした')
+    expect(container?.textContent).not.toContain('削除しました')
+  })
+})

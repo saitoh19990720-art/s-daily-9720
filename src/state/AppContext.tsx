@@ -13,6 +13,7 @@ import {
 import { DEFAULT_OSHI, FRAGMENT_SCHEMA_VERSION, repo } from '../lib/repository'
 import { DEFS, FREE_LIMITS, RESPONSES } from '../lib/constants'
 import { tokyoShortDate } from '../lib/date'
+import { sanitizeTags, tagsEqual } from '../lib/tags'
 import type {
   ChatMsg,
   ChatRole,
@@ -43,6 +44,9 @@ const makeRecordId = () => `r-${Date.now().toString(36)}-${(++_rseq).toString(36
 
 export const STORAGE_FAILURE_MESSAGE =
   '保存できませんでした。空き容量やSafariの設定を確認して、もう一度お試しください。'
+
+// かけら更新の結果：保存した / 変更がなく保存不要 / 失敗。
+export type MemoUpdateResult = 'saved' | 'unchanged' | 'error'
 
 // チャットの表示要素（メッセージ / 入力中 / 保存候補カード）
 // ext.source = 候補を生んだ元会話の最小スナップショット（かけら保存時に origin として引き継ぐ）。
@@ -79,6 +83,12 @@ interface AppState {
   addMemo: (text: string) => boolean
   editMemo: (idx: number, text: string) => boolean
   deleteMemo: (idx: number) => void
+  // ③-B-2：詳細から id 指定で本文＋タグを更新／削除する。
+  updateMemo: (id: string, text: string, tags: string[]) => MemoUpdateResult
+  deleteMemoById: (id: string) => boolean
+  fragmentDetail: { open: boolean; id: string | null }
+  openFragmentDetail: (id: string) => void
+  closeFragmentDetail: () => void
   // 予定
   planItems: PlanItem[]
   addPlanItem: (text: string, time: string, cat: PlanCat) => boolean
@@ -254,6 +264,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<string>('')
   const toastTimer = useRef<number | undefined>(undefined)
   const savingCandidates = useRef<Set<string>>(new Set())
+  const memoMutationIds = useRef<Set<string>>(new Set())
+
+  // 更新・削除成功後、次のstateが反映された時点で同一IDの連打ロックを解除する。
+  useEffect(() => {
+    memoMutationIds.current.clear()
+  }, [memos])
 
   const [todoModal, setTodoModal] = useState<{ open: boolean; editingId: string | null }>({
     open: false,
@@ -268,6 +284,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   })
   const openMemoModal = useCallback((idx?: number) => setMemoModal({ open: true, editingIdx: idx ?? null }), [])
   const closeMemoModal = useCallback(() => setMemoModal({ open: false, editingIdx: null }), [])
+
+  // ③-B-2：かけら詳細（id指定で開く）。
+  const [fragmentDetail, setFragmentDetail] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  })
+  const openFragmentDetail = useCallback((id: string) => setFragmentDetail({ open: true, id }), [])
+  const closeFragmentDetail = useCallback(() => setFragmentDetail({ open: false, id: null }), [])
 
   const [planModal, setPlanModal] = useState<{ open: boolean; editingIdx: number | null }>({
     open: false,
@@ -480,6 +504,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast('削除したよ')
     },
     [memos, showStorageFailure, showToast],
+  )
+
+  // ③-B-2：id指定で本文＋タグを更新。id/createdAt/source/origin/schemaVersion/date は維持し、
+  // 変更があるときだけ保存＆updatedAt更新。保存成功後だけstateを更新（updater内でlocalStorageを触らない）。
+  // 更新はid基準の置換なので、連打・二重実行でもレコードは重複しない（追加と違い冪等）。
+  const updateMemo = useCallback(
+    (id: string, text: string, tags: string[]): MemoUpdateResult => {
+      const target = memos.find((m) => m.id === id)
+      if (!target) return 'error'
+      const trimmed = text.trim()
+      if (!trimmed) return 'error'
+      const nextTags = sanitizeTags(tags)
+      // 本文・タグとも変化なし → 不要な保存をしない（updatedAtも変えない）。
+      if (trimmed === target.text && tagsEqual(nextTags, target.tags)) return 'unchanged'
+      if (memoMutationIds.current.has(id)) return 'unchanged'
+      memoMutationIds.current.add(id)
+      const next = memos.map((m) =>
+        m.id === id ? { ...m, text: trimmed, tags: nextTags, updatedAt: new Date().toISOString() } : m,
+      )
+      if (!repo.setMemos(next)) {
+        memoMutationIds.current.delete(id)
+        showStorageFailure()
+        return 'error'
+      }
+      setMemos(next)
+      return 'saved'
+    },
+    [memos, showStorageFailure],
+  )
+  const deleteMemoById = useCallback(
+    (id: string) => {
+      if (!memos.some((m) => m.id === id)) return false
+      if (memoMutationIds.current.has(id)) return false
+      memoMutationIds.current.add(id)
+      const next = memos.filter((m) => m.id !== id)
+      if (!repo.setMemos(next)) {
+        memoMutationIds.current.delete(id)
+        showStorageFailure()
+        return false
+      }
+      setMemos(next)
+      return true
+    },
+    [memos, showStorageFailure],
   )
 
   // 予定（永続化）
@@ -737,6 +805,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addMemo,
     editMemo,
     deleteMemo,
+    updateMemo,
+    deleteMemoById,
+    fragmentDetail,
+    openFragmentDetail,
+    closeFragmentDetail,
     planItems,
     addPlanItem,
     editPlanItem,

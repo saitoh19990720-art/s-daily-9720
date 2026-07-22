@@ -56,3 +56,22 @@ export function tokyoDateInputValue(date = new Date(), addDays = 0): string {
 export function tokyoShortDate(date = new Date()): string {
   return tokyoDateInputValue(date).slice(5).replace('-', '/')
 }
+
+// ISO文字列を東京時間の「YYYY/MM/DD HH:mm」で表示する。③-B-2の詳細画面用。
+// 不正な日付は空文字（呼び出し側でフォールバック表示）。
+export function tokyoDateTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TOKYO_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  return `${value('year')}/${value('month')}/${value('day')} ${value('hour')}:${value('minute')}`
+}

@@ -5,9 +5,15 @@ import { useApp } from '../state/AppContext'
 import { ThemeButton } from '../components/TopBits'
 
 export function MemoContent() {
-  const { memos, openMemoModal, deleteMemo } = useApp()
+  const { memos, openMemoModal, openFragmentDetail } = useApp()
   const [query, setQuery] = useState('')
-  const filtered = memos.filter((memo) => memo.text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const normalized = query.trim().toLocaleLowerCase()
+  // 本文とタグの両方を検索対象にする。
+  const filtered = memos.filter(
+    (memo) =>
+      memo.text.toLocaleLowerCase().includes(normalized) ||
+      memo.tags.some((tag) => tag.toLocaleLowerCase().includes(normalized)),
+  )
 
   return (
     <section className="organize-panel organize-fragments" aria-labelledby="organize-tab-fragments">
@@ -28,24 +34,34 @@ export function MemoContent() {
       ) : (
         <div className="organize-fragment-list">
           {filtered.map((memo) => {
-            const index = memos.indexOf(memo)
+            const preview = memo.text.length > 40 ? `${memo.text.slice(0, 40)}…` : memo.text
             return (
-              <article className="card organize-fragment-card" key={`${memo.date}-${index}`}>
+              <button
+                type="button"
+                className="card organize-fragment-card fragment-card-btn"
+                key={memo.id}
+                onClick={() => openFragmentDetail(memo.id)}
+                aria-label={`${preview} の詳細を開く`}
+              >
                 <div className="organize-card-meta">
                   <span>{memo.date}</span>
-                  <span>💬 会話から保存</span>
+                  <span>{memo.source === 'chat' ? '💬 会話から' : '✍️ 手動'}</span>
                 </div>
                 <div className="mi-text">{memo.text}</div>
-                <span className="memo-badge">かけら</span>
-                <div className="mi-acts">
-                  <button className="btn btn-ghost btn-sm" onClick={() => openMemoModal(index)} aria-label={`${memo.text}を編集`}>
-                    編集
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => deleteMemo(index)} aria-label={`${memo.text}を削除`}>
-                    削除
-                  </button>
+                <div className="fragment-card-foot">
+                  <span className="memo-badge">かけら</span>
+                  {memo.tags.length > 0 && (
+                    <span className="fragment-card-tags">
+                      {memo.tags.slice(0, 3).map((tag, index) => (
+                        <span key={`${index}:${tag}`} className="fd-tag fd-tag-sm">
+                          {tag}
+                        </span>
+                      ))}
+                      {memo.tags.length > 3 && <span className="fragment-card-more">+{memo.tags.length - 3}</span>}
+                    </span>
+                  )}
                 </div>
-              </article>
+              </button>
             )
           })}
         </div>

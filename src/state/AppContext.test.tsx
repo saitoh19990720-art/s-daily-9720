@@ -385,3 +385,186 @@ describe('Toastの読み上げ', () => {
     expect(toast?.textContent).toBe(STORAGE_FAILURE_MESSAGE)
   })
 })
+
+// 会話由来のかけらを1件だけ作って返す（origin付き）。fake timers前提。
+function seedChatMemo() {
+  vi.spyOn(Math, 'random').mockReturnValue(0)
+  renderProbe(
+    <AppProvider>
+      <Probe />
+    </AppProvider>,
+  )
+  act(() => app.sendChat('この内容をメモに残して'))
+  act(() => vi.advanceTimersByTime(601))
+  act(() => vi.advanceTimersByTime(301))
+  const candidate = app.chatItems.find((item) => item.kind === 'ext')
+  act(() => app.saveCandidate(candidate!.id))
+  return app.memos[0]
+}
+
+describe('会話のかけらの詳細編集・削除（③-B-2）', () => {
+  it('本文とタグを更新するとid/createdAt/source/originを維持しupdatedAtだけ変わる、再読込でも保持', () => {
+    vi.useFakeTimers()
+    const before = seedChatMemo()
+    const id = before.id
+    expect(before.source).toBe('chat')
+    expect(before.origin).toHaveLength(2)
+
+    act(() => vi.advanceTimersByTime(1000))
+    let result: string | undefined
+    act(() => {
+      result = app.updateMemo(id, '書き直した本文', ['嬉しい', '推し'])
+    })
+    expect(result).toBe('saved')
+
+    reload(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    const after = app.memos.find((m) => m.id === id)!
+    expect(after.text).toBe('書き直した本文')
+    expect(after.tags).toEqual(['嬉しい', '推し'])
+    expect(after.id).toBe(id)
+    expect(after.createdAt).toBe(before.createdAt)
+    expect(after.source).toBe('chat')
+    expect(after.origin).toEqual(before.origin)
+    expect(after.schemaVersion).toBe(before.schemaVersion)
+    expect(after.updatedAt).not.toBe(before.updatedAt)
+  })
+
+  it('変更がなければ保存せず（setItem未呼び出し・updatedAt不変）unchangedを返す', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+    let result: string | undefined
+    act(() => {
+      result = app.updateMemo(memo.id, memo.text, memo.tags)
+    })
+    expect(result).toBe('unchanged')
+    expect(spy).not.toHaveBeenCalled()
+    expect(app.memos[0].updatedAt).toBe(memo.updatedAt)
+  })
+
+  it('同一描画内の連打でも更新・削除を重複保存しない', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+    let firstUpdate: string | undefined
+    let secondUpdate: string | undefined
+    act(() => {
+      firstUpdate = app.updateMemo(memo.id, '連打した本文', ['tag'])
+      secondUpdate = app.updateMemo(memo.id, '連打した本文', ['tag'])
+    })
+    expect(firstUpdate).toBe('saved')
+    expect(secondUpdate).toBe('unchanged')
+    expect(spy.mock.calls.filter(([key]) => key === 'oshi-os:v1:fragments')).toHaveLength(1)
+
+    spy.mockClear()
+    let firstDelete: boolean | undefined
+    let secondDelete: boolean | undefined
+    act(() => {
+      firstDelete = app.deleteMemoById(memo.id)
+      secondDelete = app.deleteMemoById(memo.id)
+    })
+    expect(firstDelete).toBe(true)
+    expect(secondDelete).toBe(false)
+    expect(spy.mock.calls.filter(([key]) => key === 'oshi-os:v1:fragments')).toHaveLength(1)
+  })
+
+  it('タグを整形する（前後空白除去・空タグ除外・完全一致重複除外・件数と文字数の上限）', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+    const many = Array.from({ length: 12 }, (_, i) => `t${i}`)
+    act(() => {
+      app.updateMemo(memo.id, memo.text, ['  a  ', 'a', '', '   ', 'b'])
+    })
+    expect(app.memos[0].tags).toEqual(['a', 'b'])
+
+    act(() => {
+      app.updateMemo(memo.id, memo.text, many)
+    })
+    expect(app.memos[0].tags).toHaveLength(10)
+
+    const longTag = 'あ'.repeat(21)
+    act(() => {
+      app.updateMemo(memo.id, memo.text, ['ok', longTag])
+    })
+    expect(app.memos[0].tags).toEqual(['ok'])
+  })
+
+  it('更新保存例外時はerrorを返しstateを変えず、再試行で保存できる', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+    const originalSetItem = Storage.prototype.setItem
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === 'oshi-os:v1:fragments') throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      return originalSetItem.call(this, key, value)
+    })
+    let result: string | undefined
+    act(() => {
+      result = app.updateMemo(memo.id, '新しい本文', ['tag'])
+    })
+    expect(result).toBe('error')
+    expect(app.memos[0].text).toBe(memo.text)
+    expect(app.toast).toBe(STORAGE_FAILURE_MESSAGE)
+
+    spy.mockImplementation(function (this: Storage, key, value) {
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => {
+      result = app.updateMemo(memo.id, '新しい本文', ['tag'])
+    })
+    expect(result).toBe('saved')
+    expect(app.memos[0].text).toBe('新しい本文')
+  })
+
+  it('deleteMemoByIdは成功で除外し再読込でも復元しない、失敗ではstateを保持する', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+
+    // 失敗：state不変・false
+    const originalSetItem = Storage.prototype.setItem
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === 'oshi-os:v1:fragments') throw new DOMException('denied', 'SecurityError')
+      return originalSetItem.call(this, key, value)
+    })
+    let ok: boolean | undefined
+    act(() => {
+      ok = app.deleteMemoById(memo.id)
+    })
+    expect(ok).toBe(false)
+    expect(app.memos).toHaveLength(1)
+
+    // 復旧して削除成功
+    spy.mockImplementation(function (this: Storage, key, value) {
+      return originalSetItem.call(this, key, value)
+    })
+    act(() => {
+      ok = app.deleteMemoById(memo.id)
+    })
+    expect(ok).toBe(true)
+    expect(app.memos).toHaveLength(0)
+
+    reload(
+      <AppProvider>
+        <Probe />
+      </AppProvider>,
+    )
+    expect(app.memos).toHaveLength(0)
+  })
+
+  it('更新・削除で既存キー（planItems / theme）は変化しない', () => {
+    vi.useFakeTimers()
+    const memo = seedChatMemo()
+    act(() => app.addPlanItem('作業', '10:00', 'task'))
+    const planBefore = localStorage.getItem('planItems')
+    const themeBefore = localStorage.getItem('theme')
+
+    act(() => app.updateMemo(memo.id, '変えた', ['x']))
+    act(() => app.deleteMemoById(memo.id))
+
+    expect(localStorage.getItem('planItems')).toBe(planBefore)
+    expect(localStorage.getItem('theme')).toBe(themeBefore)
+  })
+})

@@ -14,12 +14,13 @@ import Toast from './components/Toast'
 import TodoModal from './components/TodoModal'
 import MemoModal from './components/MemoModal'
 import PlanModal from './components/PlanModal'
+import FragmentDetailModal from './components/FragmentDetailModal'
 import { useVisualViewport } from './lib/useVisualViewport'
 
 export default function App() {
-  const { screen, obDone, todoModal, memoModal, planModal } = useApp()
+  const { screen, obDone, todoModal, memoModal, planModal, fragmentDetail } = useApp()
   useVisualViewport()
-  const modalOpen = todoModal.open || memoModal.open || planModal.open
+  const modalOpen = todoModal.open || memoModal.open || planModal.open || fragmentDetail.open
   const backgroundBlocked = modalOpen || !obDone
   const appRef = useRef<HTMLDivElement>(null)
 
@@ -61,6 +62,7 @@ export default function App() {
       <TodoModal />
       <MemoModal />
       <PlanModal />
+      <FragmentDetailModal />
       <Toast />
     </>
   )
