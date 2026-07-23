@@ -43,6 +43,9 @@ button.card{width:100%;color:var(--text);font-family:inherit;text-align:left;}
 .btn-danger{background:transparent;border:1px solid rgba(224,122,122,.3);color:var(--danger);}
 /* かけら→タスク変換の入口。削除(赤)・編集(塗り)と視覚的に区別する冷色アウトライン。 */
 .btn-task{background:transparent;border:1px solid var(--accent-s);color:var(--accent);}
+/* かけら→予定変換の入口。タスク(冷色)・削除(赤)・編集(塗り)と区別する予定色枠。
+   本文色は可読性AA確保のため --text。識別はピンク枠＋🗓アイコン（色のみに依存しない）。 */
+.btn-plan{background:transparent;border:1px solid var(--plan);color:var(--text);}
 .btn-full{width:100%;margin-top:10px;}
 .btn-sm{min-height:44px;padding:7px 12px;font-size:11px;}
 .btn-icon{min-width:44px;min-height:44px;background:none;border:none;font-size:14px;cursor:pointer;padding:8px;color:var(--muted);line-height:1;opacity:0;transition:opacity .15s;display:inline-flex;align-items:center;justify-content:center;}

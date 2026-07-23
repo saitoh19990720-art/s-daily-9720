@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Modal from './Modal'
 import TaskConvertModal from './TaskConvertModal'
+import PlanConvertModal from './PlanConvertModal'
 import { useApp } from '../state/AppContext'
 import { tokyoDateTime } from '../lib/date'
 import { FRAGMENT_TAG_MAX_COUNT, FRAGMENT_TAG_MAX_LENGTH, tagsEqual } from '../lib/tags'
@@ -23,9 +24,13 @@ export default function FragmentDetailModal() {
   const [confirm, setConfirm] = useState<ConfirmKind>(null)
   // ③-B-3-1：かけら→タスク変換Modalの開閉。詳細の編集stateとは独立（混同しない）。
   const [converting, setConverting] = useState(false)
+  // ③-B-3-2：かけら→予定変換Modalの開閉。タスク変換とも独立。
+  const [convertingPlan, setConvertingPlan] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const taskConvertButtonRef = useRef<HTMLButtonElement>(null)
   const restoreTaskConvertFocusRef = useRef(false)
+  const planConvertButtonRef = useRef<HTMLButtonElement>(null)
+  const restorePlanConvertFocusRef = useRef(false)
 
   // 開いた時・対象が変わった時は必ず view から。編集内容は都度リセット。
   useEffect(() => {
@@ -36,6 +41,7 @@ export default function FragmentDetailModal() {
     setTagInput('')
     setConfirm(null)
     setConverting(false)
+    setConvertingPlan(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, id])
 
@@ -56,6 +62,15 @@ export default function FragmentDetailModal() {
       taskConvertButtonRef.current?.focus()
     }
   }, [converting])
+
+  // 予定変換Modalを閉じた後は、それを開いた「予定にする」へフォーカスを戻す。
+  useEffect(() => {
+    if (!convertingPlan && restorePlanConvertFocusRef.current) {
+      restorePlanConvertFocusRef.current = false
+      const frame = window.requestAnimationFrame(() => planConvertButtonRef.current?.focus())
+      return () => window.cancelAnimationFrame(frame)
+    }
+  }, [convertingPlan])
 
   if (!open) return null
   if (!memo) return null
@@ -243,6 +258,14 @@ export default function FragmentDetailModal() {
             >
               📋 タスクにする
             </button>
+            <button
+              ref={planConvertButtonRef}
+              type="button"
+              className="btn btn-plan"
+              onClick={() => setConvertingPlan(true)}
+            >
+              🗓 予定にする
+            </button>
             <button type="button" className="btn btn-primary" onClick={enterEdit}>
               編集
             </button>
@@ -371,6 +394,16 @@ export default function FragmentDetailModal() {
         onClose={() => {
           restoreTaskConvertFocusRef.current = true
           setConverting(false)
+        }}
+      />
+
+      {/* ③-B-3-2：かけら→予定変換。成功しても詳細は維持（元のかけらは不変）。 */}
+      <PlanConvertModal
+        open={convertingPlan}
+        memo={memo}
+        onClose={() => {
+          restorePlanConvertFocusRef.current = true
+          setConvertingPlan(false)
         }}
       />
     </Modal>

@@ -350,9 +350,7 @@ describe('かけら→タスク変換（③-B-3-1）', () => {
     renderApp('#/organize/fragments')
     act(() => detailCard().click())
 
-    // 予定への変換UIは無い
-    expect(container?.textContent).not.toContain('予定にする')
-
+    // ③-B-3-2で「予定にする」が追加されても、タスク変換は独立して動作する。
     act(() => container!.querySelector<HTMLButtonElement>('.btn-task')!.click())
     const input = container!.querySelector<HTMLInputElement>('#task-name-input')!
     expect(input.value).toBe('残しておきたい会話') // かけら本文由来の初期値
@@ -406,5 +404,87 @@ describe('かけら→タスク変換（③-B-3-1）', () => {
     expect(localStorage.getItem('hlogs')).toBe(hlogsBefore)
     expect(localStorage.getItem('theme')).toBe(themeBefore)
     expect(localStorage.getItem('oshi-os:v1:fragments')).toBe(fragBefore)
+  })
+})
+
+describe('かけら→予定変換（③-B-3-2）', () => {
+  it('詳細から「予定にする」で初期値付きModalを開き、追加で予定一覧へ反映・かけら不変・フォーカス復帰', () => {
+    vi.useFakeTimers()
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+
+    // タスク変換と共存（両方の入口がある）
+    expect(container!.querySelector('.btn-task')).not.toBeNull()
+    expect(container!.querySelector('.btn-plan')).not.toBeNull()
+
+    act(() => container!.querySelector<HTMLButtonElement>('.btn-plan')!.click())
+    const nameInput = container!.querySelector<HTMLInputElement>('#plan-name-input')!
+    expect(nameInput.value).toBe('残しておきたい会話') // かけら本文由来
+    // 明示追加前は予定未保存
+    expect(localStorage.getItem('planItems')).toBeNull()
+
+    setFormValue(nameInput, '配信を見る')
+    setFormValue(container!.querySelector<HTMLInputElement>('#plan-time-input')!, '20:00')
+    act(() => button('予定を追加').click())
+
+    // 永続化（既存planItems形式＝素の配列・時間ずれなし）
+    expect(JSON.parse(localStorage.getItem('planItems') ?? '[]')).toEqual([
+      { text: '配信を見る', time: '20:00', cat: 'fun' },
+    ])
+    expect(container?.textContent).toContain('予定に追加しました')
+
+    // 250ms吸収後：変換Modalだけ閉じ、詳細維持、フォーカスは「予定にする」へ復帰
+    act(() => vi.advanceTimersByTime(251))
+    act(() => vi.advanceTimersByTime(16)) // 親Modalの再描画後、次フレームで復帰
+    expect(container?.querySelector('#plan-name-input')).toBeNull()
+    expect(container?.querySelector('[role="dialog"] .modal-title')?.textContent).toBe('かけらの詳細')
+    expect(document.activeElement).toBe(container!.querySelector('.btn-plan'))
+
+    // 元のかけらは不変
+    const frag = JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records[0]
+    expect(frag.text).toBe(SEED_MEMO.text)
+    expect(frag.tags).toEqual(SEED_MEMO.tags)
+    expect(frag.updatedAt).toBe(SEED_MEMO.updatedAt)
+    expect(frag.origin).toHaveLength(2)
+
+    // 詳細を閉じて予定タブへ → 反映確認
+    act(() => button('閉じる').click())
+    act(() => button('予定').click())
+    expect(container?.textContent).toContain('配信を見る')
+  })
+
+  it('予定作成でタスク・健康・設定・かけらの保存キーを変更しない', () => {
+    localStorage.setItem('oshi-os:v1:todos', JSON.stringify({ schemaVersion: 1, records: [] }))
+    localStorage.setItem('hlogs', JSON.stringify([]))
+    localStorage.setItem('theme', 'dark')
+    seedFragment()
+    renderApp('#/organize/fragments')
+
+    const todosBefore = localStorage.getItem('oshi-os:v1:todos')
+    const hlogsBefore = localStorage.getItem('hlogs')
+    const themeBefore = localStorage.getItem('theme')
+    const fragBefore = localStorage.getItem('oshi-os:v1:fragments')
+
+    act(() => detailCard().click())
+    act(() => container!.querySelector<HTMLButtonElement>('.btn-plan')!.click())
+    setFormValue(container!.querySelector<HTMLInputElement>('#plan-name-input')!, '予定にする内容')
+    act(() => button('予定を追加').click())
+
+    expect(localStorage.getItem('oshi-os:v1:todos')).toBe(todosBefore)
+    expect(localStorage.getItem('hlogs')).toBe(hlogsBefore)
+    expect(localStorage.getItem('theme')).toBe(themeBefore)
+    expect(localStorage.getItem('oshi-os:v1:fragments')).toBe(fragBefore)
+  })
+
+  it('既存のタスク変換が引き続き動作する（予定変換の追加で壊れない）', () => {
+    vi.useFakeTimers()
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    act(() => container!.querySelector<HTMLButtonElement>('.btn-task')!.click())
+    setFormValue(container!.querySelector<HTMLInputElement>('#task-name-input')!, 'タスク側も動く')
+    act(() => button('タスクを追加').click())
+    expect(JSON.parse(localStorage.getItem('oshi-os:v1:todos') ?? '{}').records[0].text).toBe('タスク側も動く')
   })
 })
