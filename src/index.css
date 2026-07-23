@@ -41,6 +41,8 @@ button.card{width:100%;color:var(--text);font-family:inherit;text-align:left;}
 .btn-primary{background:linear-gradient(135deg,var(--accent-action),var(--accent-action-2));color:white;}
 .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--muted);}
 .btn-danger{background:transparent;border:1px solid rgba(224,122,122,.3);color:var(--danger);}
+/* かけら→タスク変換の入口。削除(赤)・編集(塗り)と視覚的に区別する冷色アウトライン。 */
+.btn-task{background:transparent;border:1px solid var(--accent-s);color:var(--accent);}
 .btn-full{width:100%;margin-top:10px;}
 .btn-sm{min-height:44px;padding:7px 12px;font-size:11px;}
 .btn-icon{min-width:44px;min-height:44px;background:none;border:none;font-size:14px;cursor:pointer;padding:8px;color:var(--muted);line-height:1;opacity:0;transition:opacity .15s;display:inline-flex;align-items:center;justify-content:center;}

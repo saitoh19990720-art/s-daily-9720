@@ -3,6 +3,7 @@
 // 思想：明示操作なしに更新・削除しない／元会話と利用者の本文をラベルと見た目で区別する。
 import { useEffect, useRef, useState } from 'react'
 import Modal from './Modal'
+import TaskConvertModal from './TaskConvertModal'
 import { useApp } from '../state/AppContext'
 import { tokyoDateTime } from '../lib/date'
 import { FRAGMENT_TAG_MAX_COUNT, FRAGMENT_TAG_MAX_LENGTH, tagsEqual } from '../lib/tags'
@@ -20,7 +21,11 @@ export default function FragmentDetailModal() {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [confirm, setConfirm] = useState<ConfirmKind>(null)
+  // ③-B-3-1：かけら→タスク変換Modalの開閉。詳細の編集stateとは独立（混同しない）。
+  const [converting, setConverting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const taskConvertButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreTaskConvertFocusRef = useRef(false)
 
   // 開いた時・対象が変わった時は必ず view から。編集内容は都度リセット。
   useEffect(() => {
@@ -30,6 +35,7 @@ export default function FragmentDetailModal() {
     setTags(memo?.tags ?? [])
     setTagInput('')
     setConfirm(null)
+    setConverting(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, id])
 
@@ -42,6 +48,14 @@ export default function FragmentDetailModal() {
   useEffect(() => {
     if (open && id && !memo) closeFragmentDetail()
   }, [closeFragmentDetail, id, memo, open])
+
+  // 変換Modalを閉じた後は、それを開いた「タスクにする」へフォーカスを戻す。
+  useEffect(() => {
+    if (!converting && restoreTaskConvertFocusRef.current) {
+      restoreTaskConvertFocusRef.current = false
+      taskConvertButtonRef.current?.focus()
+    }
+  }, [converting])
 
   if (!open) return null
   if (!memo) return null
@@ -221,6 +235,14 @@ export default function FragmentDetailModal() {
             <button type="button" className="btn btn-danger" onClick={() => setConfirm('delete')}>
               削除
             </button>
+            <button
+              ref={taskConvertButtonRef}
+              type="button"
+              className="btn btn-task"
+              onClick={() => setConverting(true)}
+            >
+              📋 タスクにする
+            </button>
             <button type="button" className="btn btn-primary" onClick={enterEdit}>
               編集
             </button>
@@ -341,6 +363,16 @@ export default function FragmentDetailModal() {
           </div>
         </Modal>
       )}
+
+      {/* ③-B-3-1：かけら→タスク変換。成功しても詳細は維持（元のかけらは不変）。 */}
+      <TaskConvertModal
+        open={converting}
+        memo={memo}
+        onClose={() => {
+          restoreTaskConvertFocusRef.current = true
+          setConverting(false)
+        }}
+      />
     </Modal>
   )
 }

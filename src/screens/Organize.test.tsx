@@ -55,6 +55,7 @@ afterEach(() => {
   container = null
   document.body.style.overflow = ''
   document.body.classList.remove('modal-open')
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -326,5 +327,84 @@ describe('会話のかけらの詳細（③-B-2）', () => {
     expect(JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records).toHaveLength(1)
     expect(container?.textContent).toContain('保存できませんでした')
     expect(container?.textContent).not.toContain('削除しました')
+  })
+})
+
+describe('かけら→タスク変換（③-B-3-1）', () => {
+  it('変換Modalを閉じると、開いた「タスクにする」ボタンへフォーカスを戻す', () => {
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+    const trigger = container!.querySelector<HTMLButtonElement>('.btn-task')!
+    act(() => trigger.click())
+    act(() => button('キャンセル').click())
+
+    expect(document.activeElement).toBe(trigger)
+    expect(container?.querySelector('#task-name-input')).toBeNull()
+    expect(container?.querySelector('[role="dialog"] .modal-title')?.textContent).toBe('かけらの詳細')
+  })
+
+  it('詳細から「タスクにする」で初期値付きModalを開き、追加でタスク一覧へ反映・かけらは不変', () => {
+    vi.useFakeTimers()
+    seedFragment()
+    renderApp('#/organize/fragments')
+    act(() => detailCard().click())
+
+    // 予定への変換UIは無い
+    expect(container?.textContent).not.toContain('予定にする')
+
+    act(() => container!.querySelector<HTMLButtonElement>('.btn-task')!.click())
+    const input = container!.querySelector<HTMLInputElement>('#task-name-input')!
+    expect(input.value).toBe('残しておきたい会話') // かけら本文由来の初期値
+    // 明示追加前はタスク未保存
+    expect(localStorage.getItem('oshi-os:v1:todos')).toBeNull()
+
+    setFormValue(input, '会話を後で見返す')
+    act(() => button('タスクを追加').click())
+
+    // 永続化＆成功通知
+    const savedTodos = JSON.parse(localStorage.getItem('oshi-os:v1:todos') ?? '{}')
+    expect(savedTodos.records).toHaveLength(1)
+    expect(savedTodos.records[0].text).toBe('会話を後で見返す')
+    expect(container?.textContent).toContain('タスクに追加しました')
+    // 変換Modalは閉じ、詳細は維持
+    act(() => vi.advanceTimersByTime(251))
+    expect(container?.querySelector('#task-name-input')).toBeNull()
+    expect(container?.querySelector('[role="dialog"] .modal-title')?.textContent).toBe('かけらの詳細')
+
+    // 元のかけらは不変（本文/タグ/updatedAt/origin）
+    const frag = JSON.parse(localStorage.getItem('oshi-os:v1:fragments') ?? '{}').records[0]
+    expect(frag.text).toBe(SEED_MEMO.text)
+    expect(frag.tags).toEqual(SEED_MEMO.tags)
+    expect(frag.updatedAt).toBe(SEED_MEMO.updatedAt)
+    expect(frag.origin).toHaveLength(2)
+
+    // 詳細を閉じてタスクタブへ → 反映を確認
+    act(() => button('閉じる').click())
+    act(() => button('タスク').click())
+    expect(container?.textContent).toContain('会話を後で見返す')
+  })
+
+  it('タスク作成で予定・健康・設定・かけらの保存キーを変更しない', () => {
+    localStorage.setItem('planItems', JSON.stringify([{ text: '予定', time: '', cat: 'task' }]))
+    localStorage.setItem('hlogs', JSON.stringify([]))
+    localStorage.setItem('theme', 'dark')
+    seedFragment()
+    renderApp('#/organize/fragments')
+
+    const planBefore = localStorage.getItem('planItems')
+    const hlogsBefore = localStorage.getItem('hlogs')
+    const themeBefore = localStorage.getItem('theme')
+    const fragBefore = localStorage.getItem('oshi-os:v1:fragments')
+
+    act(() => detailCard().click())
+    act(() => container!.querySelector<HTMLButtonElement>('.btn-task')!.click())
+    setFormValue(container!.querySelector<HTMLInputElement>('#task-name-input')!, 'タスクにする内容')
+    act(() => button('タスクを追加').click())
+
+    expect(localStorage.getItem('planItems')).toBe(planBefore)
+    expect(localStorage.getItem('hlogs')).toBe(hlogsBefore)
+    expect(localStorage.getItem('theme')).toBe(themeBefore)
+    expect(localStorage.getItem('oshi-os:v1:fragments')).toBe(fragBefore)
   })
 })
