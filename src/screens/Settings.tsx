@@ -1,8 +1,9 @@
 // 設定画面。Vanilla版 scr-settings のフォーム・コピー・owner-only 制御を保持。
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { ThemeButton } from '../components/TopBits'
 import Modal from '../components/Modal'
+import { compressAvatarImage } from '../lib/avatarImage'
 
 const RELATIONS = ['推し', '相棒', '恋人未満', '恋人', '友達', '先輩', '執事・メイド', '創作キャラ']
 const TONES = ['やさしい', 'クール', '甘い', 'ツンデレ', '明るい', '無口', '丁寧']
@@ -18,7 +19,17 @@ const MODES = [
 export default function Settings() {
   const { oshi, saveOshi, previewAvatar, showToast, setScreen, resetRecordData } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
+  const mountedRef = useRef(true)
+  const avatarRequestRef = useRef(0)
   const [confirmReset, setConfirmReset] = useState(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      avatarRequestRef.current += 1
+    }
+  }, [])
 
   const onReset = () => {
     // 成功時のみモーダルを閉じる。失敗時はresetRecordData側でエラー通知を出し、Modalは開いたまま。
@@ -37,15 +48,23 @@ export default function Settings() {
   // 特殊モードは Vanilla版でも保存対象外の見た目トグル（初期は前半3つ選択）
   const [modes, setModes] = useState<Set<number>>(new Set([0, 1, 2]))
 
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget
     const f = e.target.files?.[0]
     if (!f) return
-    const r = new FileReader()
-    r.onload = (ev) => {
-      previewAvatar(ev.target?.result as string)
+    input.value = ''
+    const requestId = ++avatarRequestRef.current
+    try {
+      const avatarDataUrl = await compressAvatarImage(f)
+      if (!mountedRef.current || requestId !== avatarRequestRef.current) return
+      previewAvatar(avatarDataUrl)
       showToast('画像を設定 🩵')
+    } catch {
+      if (!mountedRef.current || requestId !== avatarRequestRef.current) return
+      showToast(f.type.toLowerCase().startsWith('image/')
+        ? '画像を読み込めませんでした。別の画像を選んでください'
+        : '画像ファイルを選択してください')
     }
-    r.readAsDataURL(f)
   }
 
   const save = () => {
