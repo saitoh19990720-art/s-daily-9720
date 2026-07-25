@@ -204,6 +204,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [organizeTab, setOrganizeTabState] = useState<OrganizeTab>(initialRoute.organizeTab)
   const [obDone, setObDone] = useState<boolean>(() => repo.getOnboardingDone())
   const [oshi, setOshi] = useState<Oshi>(() => repo.getOshi() ?? DEFAULT_OSHI)
+  // 保存に成功した最新のOshi。非同期処理（画像圧縮）中に他の保存が入っても
+  // 古いクロージャ値で上書きしないため、保存成功時だけ state と同時に更新する。
+  const oshiRef = useRef<Oshi>(oshi)
 
   const [todos, setTodos] = useState<Todo[]>(() => repo.getTodos())
   const [memos, setMemos] = useState<Memo[]>(() => repo.getMemos())
@@ -376,6 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         showStorageFailure()
         return false
       }
+      oshiRef.current = o
       setOshi(o)
       showToast(`${owner ? o.name || '推し' : '◯◯'}の設定を保存 🩵`)
       window.setTimeout(() => setScreen('home'), 700)
@@ -386,17 +390,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // アバターは選んだ時点で永続化する。保存成功後だけ画面へ反映し、
   // 「見えているのに再読み込みで消える」状態を作らない。
+  // 圧縮完了時の“今”の保存済み設定（oshiRef.current）へ avatarImg だけを重ねるので、
+  // 圧縮待ちの間に名前などを保存されても、その保存を巻き戻さない。
   const saveAvatar = useCallback(
     (img: string | null) => {
-      const next = { ...oshi, avatarImg: img }
+      const next = { ...oshiRef.current, avatarImg: img }
       if (!repo.setOshi(next)) {
         showStorageFailure()
         return false
       }
+      oshiRef.current = next
       setOshi(next)
       return true
     },
-    [oshi, showStorageFailure],
+    [showStorageFailure],
   )
 
   // タスク（③-B-1で永続化）。追加・編集・完了・削除いずれも「保存成功後だけ」stateを更新する。
