@@ -71,7 +71,7 @@ interface AppState {
   // 推し
   oshi: Oshi
   saveOshi: (o: Oshi) => boolean
-  previewAvatar: (img: string | null) => void
+  saveAvatar: (img: string | null) => boolean
   // タスク
   todos: Todo[]
   addTodo: (text: string, due: string, prio: Prio) => boolean
@@ -384,10 +384,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [owner, setScreen, showStorageFailure, showToast],
   )
 
-  // アバターの即時プレビュー（保存は saveOshi 時。Vanilla版 onSetAv の挙動）
-  const previewAvatar = useCallback((img: string | null) => {
-    setOshi((prev) => ({ ...prev, avatarImg: img }))
-  }, [])
+  // アバターは選んだ時点で永続化する。保存成功後だけ画面へ反映し、
+  // 「見えているのに再読み込みで消える」状態を作らない。
+  const saveAvatar = useCallback(
+    (img: string | null) => {
+      const next = { ...oshi, avatarImg: img }
+      if (!repo.setOshi(next)) {
+        showStorageFailure()
+        return false
+      }
+      setOshi(next)
+      return true
+    },
+    [oshi, showStorageFailure],
+  )
 
   // タスク（③-B-1で永続化）。追加・編集・完了・削除いずれも「保存成功後だけ」stateを更新する。
   // 保存はRepository層に集約し、state updater内でlocalStorageや別stateを触らない。
@@ -795,7 +805,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     finishOnboarding,
     oshi,
     saveOshi,
-    previewAvatar,
+    saveAvatar,
     todos,
     addTodo,
     editTodo,

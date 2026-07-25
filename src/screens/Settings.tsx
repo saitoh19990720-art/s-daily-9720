@@ -17,7 +17,7 @@ const MODES = [
 ]
 
 export default function Settings() {
-  const { oshi, saveOshi, previewAvatar, showToast, setScreen, resetRecordData } = useApp()
+  const { oshi, saveOshi, saveAvatar, showToast, setScreen, resetRecordData } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(true)
   const avatarRequestRef = useRef(0)
@@ -57,8 +57,8 @@ export default function Settings() {
     try {
       const avatarDataUrl = await compressAvatarImage(f)
       if (!mountedRef.current || requestId !== avatarRequestRef.current) return
-      previewAvatar(avatarDataUrl)
-      showToast('画像を設定 🩵')
+      // 保存できた時だけトーストを出す（失敗時は saveAvatar 側が保存エラーを通知する）
+      if (saveAvatar(avatarDataUrl)) showToast('画像を保存しました 🩵')
     } catch {
       if (!mountedRef.current || requestId !== avatarRequestRef.current) return
       showToast(f.type.toLowerCase().startsWith('image/')

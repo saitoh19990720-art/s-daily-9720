@@ -85,7 +85,32 @@ describe('Settingsのアバター画像', () => {
       .toBe('data:image/jpeg;base64,retry')
   })
 
-  it('変換成功後は既存の明示保存操作で圧縮済みData URLを保存する', async () => {
+  it('変換成功時は選んだ時点で圧縮済みData URLを保存する（再読み込みで消えない）', async () => {
+    compressAvatarImageMock.mockResolvedValueOnce('data:image/jpeg;base64,compressed')
+    renderSettings()
+    await selectFile(new File(['large'], 'large.jpg', { type: 'image/jpeg' }))
+
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg)
+      .toBe('data:image/jpeg;base64,compressed')
+    expect(container?.textContent).toContain('画像を保存しました')
+  })
+
+  it('保存に失敗した時は画面にも反映せず、保存エラーを知らせる', async () => {
+    compressAvatarImageMock.mockResolvedValueOnce('data:image/jpeg;base64,compressed')
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+    renderSettings()
+    await selectFile(new File(['large'], 'large.jpg', { type: 'image/jpeg' }))
+    setItem.mockRestore()
+
+    expect(container!.querySelector<HTMLImageElement>('.av-upload img')?.src)
+      .toBe('data:image/png;base64,existing')
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg)
+      .toBe('data:image/png;base64,existing')
+  })
+
+  it('画像を保存したあとに名前を保存しても画像は消えない', async () => {
     compressAvatarImageMock.mockResolvedValueOnce('data:image/jpeg;base64,compressed')
     renderSettings()
     await selectFile(new File(['large'], 'large.jpg', { type: 'image/jpeg' }))
