@@ -17,15 +17,23 @@ const MODES = [
 ]
 
 export default function Settings() {
-  const { oshi, saveOshi, saveAvatar, showToast, setScreen, resetRecordData } = useApp()
+  const {
+    oshi,
+    saveOshi,
+    beginAvatarSelection,
+    isLatestAvatarSelection,
+    saveAvatar,
+    showToast,
+    setScreen,
+    resetRecordData,
+  } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(true)
-  const avatarRequestRef = useRef(0)
   const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
     mountedRef.current = true
-    // unmountでは avatarRequestRef を進めない。進めると「保存へ進んでよい処理」まで
+    // unmountでは世代を進めない。進めると「保存へ進んでよい処理」まで
     // 選び直し扱いで捨ててしまい、画面遷移で画像が保存されなくなるため。
     return () => {
       mountedRef.current = false
@@ -54,16 +62,18 @@ export default function Settings() {
     const f = e.target.files?.[0]
     if (!f) return
     input.value = ''
-    const requestId = ++avatarRequestRef.current
+    // 世代IDはProvider側。設定画面を離れて戻っても「最後に選んだ画像」だけが勝つ。
+    const requestId = beginAvatarSelection()
     try {
       const avatarDataUrl = await compressAvatarImage(f)
-      // 新しい画像が選ばれていたら古い処理は捨てる（複数選択の制御は維持）。
-      if (requestId !== avatarRequestRef.current) return
-      // 保存は画面を離れたあとでも完了させる。画面表示（トースト）だけ mount 中に限る。
-      const saved = saveAvatar(avatarDataUrl)
-      if (saved && mountedRef.current) showToast('画像を保存しました 🩵')
+      // 保存は画面を離れたあとでも完了させる（新しい画像が選ばれていた場合だけ捨てる）。
+      // 画面表示（トースト）は mount 中に限るので、失敗通知の可否も保存直前に判定させる。
+      const result = saveAvatar(avatarDataUrl, requestId, {
+        shouldNotifyFailure: () => mountedRef.current,
+      })
+      if (result === 'saved' && mountedRef.current) showToast('画像を保存しました 🩵')
     } catch {
-      if (!mountedRef.current || requestId !== avatarRequestRef.current) return
+      if (!mountedRef.current || !isLatestAvatarSelection(requestId)) return
       showToast(f.type.toLowerCase().startsWith('image/')
         ? '画像を読み込めませんでした。別の画像を選んでください'
         : '画像ファイルを選択してください')

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Toast from '../components/Toast'
@@ -34,6 +34,31 @@ function renderSettings() {
 function Routed() {
   const { screen } = useApp()
   return screen === 'settings' ? <Settings /> : <div>ホーム</div>
+}
+
+// AppProviderは保ったままSettingsだけを出し入れする（画面を離れて戻る状況）
+let toggleSettings: ((visible: boolean) => void) | null = null
+
+function Toggler() {
+  const [visible, setVisible] = useState(true)
+  toggleSettings = setVisible
+  return visible ? <Settings /> : <div>ホーム</div>
+}
+
+function renderToggleable() {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => root?.render(
+    <AppProvider>
+      <Toggler />
+      <Toast />
+    </AppProvider>,
+  ))
+}
+
+function showSettings(visible: boolean) {
+  act(() => toggleSettings?.(visible))
 }
 
 function renderRouted() {
@@ -236,6 +261,71 @@ describe('Settingsのアバター画像', () => {
       vi.useRealTimers()
       consoleError.mockRestore()
     }
+  })
+
+  it('設定画面を離れて戻って選び直した時も、最後に選んだ画像だけが残る', async () => {
+    // 旧Settingsで画像Aの圧縮を保留したまま画面を離れる
+    let finishA: (dataUrl: string) => void = () => {}
+    compressAvatarImageMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => { finishA = resolve }),
+    )
+    renderToggleable()
+    await selectFile(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+
+    showSettings(false)
+    showSettings(true)
+
+    // 戻ってきた新Settingsで画像Bを選び、保存が完了する
+    compressAvatarImageMock.mockResolvedValueOnce('data:image/jpeg;base64,B')
+    await selectFile(new File(['b'], 'b.jpg', { type: 'image/jpeg' }))
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg).toBe('data:image/jpeg;base64,B')
+
+    // 遅れて完了した画像AでBを上書きしない
+    await act(async () => { finishA('data:image/jpeg;base64,A') })
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg).toBe('data:image/jpeg;base64,B')
+    expect(avatarSrc()).toBe('data:image/jpeg;base64,B')
+
+    // AppProviderを作り直しても画像Bのまま
+    unmountSettings()
+    renderSettings()
+    expect(avatarSrc()).toBe('data:image/jpeg;base64,B')
+  })
+
+  it('画面を離れただけなら、他の画像が選ばれていない限り保存は完了する', async () => {
+    let finish: (dataUrl: string) => void = () => {}
+    compressAvatarImageMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => { finish = resolve }),
+    )
+    renderToggleable()
+    await selectFile(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+
+    showSettings(false)
+    await act(async () => { finish('data:image/jpeg;base64,kept') })
+
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg).toBe('data:image/jpeg;base64,kept')
+  })
+
+  it('画面を離れたあとの保存失敗では、エラーToastを出さず既存値も壊さない', async () => {
+    let finish: (dataUrl: string) => void = () => {}
+    compressAvatarImageMock.mockReturnValueOnce(
+      new Promise<string>((resolve) => { finish = resolve }),
+    )
+    renderToggleable()
+    await selectFile(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+
+    showSettings(false)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+    await act(async () => { finish('data:image/jpeg;base64,failed') })
+    setItem.mockRestore()
+
+    // 背景での失敗は通知しない
+    expect(container?.textContent).not.toContain(STORAGE_FAILURE_MESSAGE)
+    // localStorage・ref・stateの既存値は維持（戻すと元の画像が出る）
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg).toBe('data:image/png;base64,existing')
+    showSettings(true)
+    expect(avatarSrc()).toBe('data:image/png;base64,existing')
   })
 
   it('続けて選び直した時は、最後に選んだ画像だけが保存される', async () => {
