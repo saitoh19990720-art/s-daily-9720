@@ -25,9 +25,10 @@ export default function Settings() {
 
   useEffect(() => {
     mountedRef.current = true
+    // unmountでは avatarRequestRef を進めない。進めると「保存へ進んでよい処理」まで
+    // 選び直し扱いで捨ててしまい、画面遷移で画像が保存されなくなるため。
     return () => {
       mountedRef.current = false
-      avatarRequestRef.current += 1
     }
   }, [])
 
@@ -56,9 +57,11 @@ export default function Settings() {
     const requestId = ++avatarRequestRef.current
     try {
       const avatarDataUrl = await compressAvatarImage(f)
-      if (!mountedRef.current || requestId !== avatarRequestRef.current) return
-      // 保存できた時だけトーストを出す（失敗時は saveAvatar 側が保存エラーを通知する）
-      if (saveAvatar(avatarDataUrl)) showToast('画像を保存しました 🩵')
+      // 新しい画像が選ばれていたら古い処理は捨てる（複数選択の制御は維持）。
+      if (requestId !== avatarRequestRef.current) return
+      // 保存は画面を離れたあとでも完了させる。画面表示（トースト）だけ mount 中に限る。
+      const saved = saveAvatar(avatarDataUrl)
+      if (saved && mountedRef.current) showToast('画像を保存しました 🩵')
     } catch {
       if (!mountedRef.current || requestId !== avatarRequestRef.current) return
       showToast(f.type.toLowerCase().startsWith('image/')

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Toast from '../components/Toast'
 import { DEFAULT_OSHI } from '../lib/repository'
-import { AppProvider, STORAGE_FAILURE_MESSAGE } from '../state/AppContext'
+import { AppProvider, STORAGE_FAILURE_MESSAGE, useApp } from '../state/AppContext'
 import Settings from './Settings'
 
 const { compressAvatarImageMock } = vi.hoisted(() => ({
@@ -25,6 +25,25 @@ function renderSettings() {
   act(() => root?.render(
     <AppProvider>
       <Settings />
+      <Toast />
+    </AppProvider>,
+  ))
+}
+
+// 画面遷移でSettingsがunmountされる状況を再現する（設定画面のときだけSettingsを描画）
+function Routed() {
+  const { screen } = useApp()
+  return screen === 'settings' ? <Settings /> : <div>ホーム</div>
+}
+
+function renderRouted() {
+  window.location.hash = '#/settings'
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => root?.render(
+    <AppProvider>
+      <Routed />
       <Toast />
     </AppProvider>,
   ))
@@ -65,6 +84,7 @@ function avatarSrc(): string | undefined {
 
 beforeEach(() => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  window.location.hash = ''
   localStorage.clear()
   localStorage.setItem('oshi', JSON.stringify({
     ...DEFAULT_OSHI,
@@ -171,5 +191,70 @@ describe('Settingsのアバター画像', () => {
 
     expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg)
       .toBe('data:image/jpeg;base64,compressed')
+  })
+
+  it('設定保存でホームへ遷移してSettingsが外れても、保留中の画像保存は完了する', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.useFakeTimers()
+    try {
+      let finishCompress: (dataUrl: string) => void = () => {}
+      compressAvatarImageMock.mockReturnValueOnce(
+        new Promise<string>((resolve) => { finishCompress = resolve }),
+      )
+      renderRouted()
+
+      // 1) 圧縮開始 → 2) 圧縮待ちの間に名前を変えて設定保存
+      await selectFile(new File(['large'], 'large.jpg', { type: 'image/jpeg' }))
+      typeName('ゆき')
+      act(() => saveButton().click())
+
+      // 3) 700ms後のホーム遷移でSettingsがunmountされる
+      await act(async () => { vi.advanceTimersByTime(800) })
+      expect(container!.querySelector('.av-upload')).toBeNull()
+      expect(container?.textContent).toContain('ホーム')
+
+      // 4) unmountのあとに圧縮が完了する
+      await act(async () => { finishCompress('data:image/jpeg;base64,compressed') })
+
+      // 5) 最新の名前と新しい画像が両方保存されている
+      const saved = JSON.parse(localStorage.getItem('oshi')!)
+      expect(saved.name).toBe('ゆき')
+      expect(saved.avatarImg).toBe('data:image/jpeg;base64,compressed')
+
+      // 7) unmount後にToastは更新しない／state更新の警告も出さない
+      expect(container?.textContent).not.toContain('画像を保存しました')
+      expect(consoleError).not.toHaveBeenCalled()
+
+      // 6) AppProviderを作り直しても名前と画像が復元される
+      unmountSettings()
+      vi.useRealTimers()
+      renderSettings()
+      expect(avatarSrc()).toBe('data:image/jpeg;base64,compressed')
+      expect(container!.querySelector<HTMLInputElement>('input[placeholder="例：あかり"]')?.value)
+        .toBe('ゆき')
+    } finally {
+      vi.useRealTimers()
+      consoleError.mockRestore()
+    }
+  })
+
+  it('続けて選び直した時は、最後に選んだ画像だけが保存される', async () => {
+    let finishFirst: (dataUrl: string) => void = () => {}
+    let finishSecond: (dataUrl: string) => void = () => {}
+    compressAvatarImageMock
+      .mockReturnValueOnce(new Promise<string>((resolve) => { finishFirst = resolve }))
+      .mockReturnValueOnce(new Promise<string>((resolve) => { finishSecond = resolve }))
+    renderSettings()
+
+    await selectFile(new File(['first'], 'first.jpg', { type: 'image/jpeg' }))
+    await selectFile(new File(['second'], 'second.jpg', { type: 'image/jpeg' }))
+
+    // 2枚目→1枚目の順で完了しても、古い1枚目は捨てられる
+    await act(async () => { finishSecond('data:image/jpeg;base64,second') })
+    await act(async () => { finishFirst('data:image/jpeg;base64,first') })
+
+    expect(JSON.parse(localStorage.getItem('oshi')!).avatarImg)
+      .toBe('data:image/jpeg;base64,second')
+    expect(avatarSrc()).toBe('data:image/jpeg;base64,second')
   })
 })
