@@ -55,6 +55,9 @@ export type ChatItem =
   | { id: string; kind: 'typing' }
   | { id: string; kind: 'ext'; extract: Extract; state: 'open' | 'saved'; source?: ChatMsg[] }
 
+/** アバター保存の結果。stale＝より新しい画像が選ばれたので捨てた。 */
+export type AvatarSaveResult = 'saved' | 'stale' | 'failed'
+
 interface AppState {
   // 基本
   owner: boolean
@@ -71,7 +74,14 @@ interface AppState {
   // 推し
   oshi: Oshi
   saveOshi: (o: Oshi) => boolean
-  previewAvatar: (img: string | null) => void
+  // 画像選択の世代管理。Settingsを離れて戻っても同じ世代列を使う。
+  beginAvatarSelection: () => number
+  isLatestAvatarSelection: (requestId: number) => boolean
+  saveAvatar: (
+    img: string | null,
+    requestId: number,
+    options?: { shouldNotifyFailure?: () => boolean },
+  ) => AvatarSaveResult
   // タスク
   todos: Todo[]
   addTodo: (text: string, due: string, prio: Prio) => boolean
@@ -204,6 +214,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [organizeTab, setOrganizeTabState] = useState<OrganizeTab>(initialRoute.organizeTab)
   const [obDone, setObDone] = useState<boolean>(() => repo.getOnboardingDone())
   const [oshi, setOshi] = useState<Oshi>(() => repo.getOshi() ?? DEFAULT_OSHI)
+  // 保存に成功した最新のOshi。非同期処理（画像圧縮）中に他の保存が入っても
+  // 古いクロージャ値で上書きしないため、保存成功時だけ state と同時に更新する。
+  const oshiRef = useRef<Oshi>(oshi)
 
   const [todos, setTodos] = useState<Todo[]>(() => repo.getTodos())
   const [memos, setMemos] = useState<Memo[]>(() => repo.getMemos())
@@ -376,6 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         showStorageFailure()
         return false
       }
+      oshiRef.current = o
       setOshi(o)
       showToast(`${owner ? o.name || '推し' : '◯◯'}の設定を保存 🩵`)
       window.setTimeout(() => setScreen('home'), 700)
@@ -384,10 +398,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [owner, setScreen, showStorageFailure, showToast],
   )
 
-  // アバターの即時プレビュー（保存は saveOshi 時。Vanilla版 onSetAv の挙動）
-  const previewAvatar = useCallback((img: string | null) => {
-    setOshi((prev) => ({ ...prev, avatarImg: img }))
-  }, [])
+  // 画像選択の世代。Settings（画面）ではなくProviderが持つので、
+  // 設定画面を離れて戻っても「最後に選んだ画像」だけが勝つ。
+  const avatarRequestRef = useRef(0)
+  const beginAvatarSelection = useCallback(() => ++avatarRequestRef.current, [])
+  const isLatestAvatarSelection = useCallback(
+    (requestId: number) => requestId === avatarRequestRef.current,
+    [],
+  )
+
+  // アバターは選んだ時点で永続化する。保存成功後だけ画面へ反映し、
+  // 「見えているのに再読み込みで消える」状態を作らない。
+  // 圧縮完了時の“今”の保存済み設定（oshiRef.current）へ avatarImg だけを重ねるので、
+  // 圧縮待ちの間に名前などを保存されても、その保存を巻き戻さない。
+  // 失敗通知を出すかどうかは、失敗が確定した時点で呼び出し側に判定させる。
+  const saveAvatar = useCallback(
+    (
+      img: string | null,
+      requestId: number,
+      options?: { shouldNotifyFailure?: () => boolean },
+    ): AvatarSaveResult => {
+      if (requestId !== avatarRequestRef.current) return 'stale'
+      const next = { ...oshiRef.current, avatarImg: img }
+      if (!repo.setOshi(next)) {
+        if (options?.shouldNotifyFailure?.() ?? true) showStorageFailure()
+        return 'failed'
+      }
+      oshiRef.current = next
+      setOshi(next)
+      return 'saved'
+    },
+    [showStorageFailure],
+  )
 
   // タスク（③-B-1で永続化）。追加・編集・完了・削除いずれも「保存成功後だけ」stateを更新する。
   // 保存はRepository層に集約し、state updater内でlocalStorageや別stateを触らない。
@@ -795,7 +837,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     finishOnboarding,
     oshi,
     saveOshi,
-    previewAvatar,
+    beginAvatarSelection,
+    isLatestAvatarSelection,
+    saveAvatar,
     todos,
     addTodo,
     editTodo,

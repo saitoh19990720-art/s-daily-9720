@@ -1,8 +1,9 @@
 // 設定画面。Vanilla版 scr-settings のフォーム・コピー・owner-only 制御を保持。
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { ThemeButton } from '../components/TopBits'
 import Modal from '../components/Modal'
+import { compressAvatarImage } from '../lib/avatarImage'
 
 const RELATIONS = ['推し', '相棒', '恋人未満', '恋人', '友達', '先輩', '執事・メイド', '創作キャラ']
 const TONES = ['やさしい', 'クール', '甘い', 'ツンデレ', '明るい', '無口', '丁寧']
@@ -16,9 +17,28 @@ const MODES = [
 ]
 
 export default function Settings() {
-  const { oshi, saveOshi, previewAvatar, showToast, setScreen, resetRecordData } = useApp()
+  const {
+    oshi,
+    saveOshi,
+    beginAvatarSelection,
+    isLatestAvatarSelection,
+    saveAvatar,
+    showToast,
+    setScreen,
+    resetRecordData,
+  } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
+  const mountedRef = useRef(true)
   const [confirmReset, setConfirmReset] = useState(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    // unmountでは世代を進めない。進めると「保存へ進んでよい処理」まで
+    // 選び直し扱いで捨ててしまい、画面遷移で画像が保存されなくなるため。
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const onReset = () => {
     // 成功時のみモーダルを閉じる。失敗時はresetRecordData側でエラー通知を出し、Modalは開いたまま。
@@ -37,15 +57,27 @@ export default function Settings() {
   // 特殊モードは Vanilla版でも保存対象外の見た目トグル（初期は前半3つ選択）
   const [modes, setModes] = useState<Set<number>>(new Set([0, 1, 2]))
 
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget
     const f = e.target.files?.[0]
     if (!f) return
-    const r = new FileReader()
-    r.onload = (ev) => {
-      previewAvatar(ev.target?.result as string)
-      showToast('画像を設定 🩵')
+    input.value = ''
+    // 世代IDはProvider側。設定画面を離れて戻っても「最後に選んだ画像」だけが勝つ。
+    const requestId = beginAvatarSelection()
+    try {
+      const avatarDataUrl = await compressAvatarImage(f)
+      // 保存は画面を離れたあとでも完了させる（新しい画像が選ばれていた場合だけ捨てる）。
+      // 画面表示（トースト）は mount 中に限るので、失敗通知の可否も保存直前に判定させる。
+      const result = saveAvatar(avatarDataUrl, requestId, {
+        shouldNotifyFailure: () => mountedRef.current,
+      })
+      if (result === 'saved' && mountedRef.current) showToast('画像を保存しました 🩵')
+    } catch {
+      if (!mountedRef.current || !isLatestAvatarSelection(requestId)) return
+      showToast(f.type.toLowerCase().startsWith('image/')
+        ? '画像を読み込めませんでした。別の画像を選んでください'
+        : '画像ファイルを選択してください')
     }
-    r.readAsDataURL(f)
   }
 
   const save = () => {
