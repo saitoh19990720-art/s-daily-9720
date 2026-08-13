@@ -1,64 +1,98 @@
-// ホーム。Vanilla版 scr-home の構造・コピーを保持。
+// ホーム。Figma正本 v2.1「✅ v2.1 — MVP Source of Truth / home-normal」(node 112:1758) に合わせて再構成。
+// 構造：oshi-profile-header → greeting-section → daily-agenda（今日やること / 今日の予定 / 最近のメモ）。
+// status-bar と home-indicator は端末側が描くクロムなので、アプリUIとしては実装しない。
 import { useApp } from '../state/AppContext'
-import { Avatar, OmamoriBadge, ThemeButton } from '../components/TopBits'
+import { Avatar, OmamoriBadge } from '../components/TopBits'
 import TodoItem from '../components/TodoItem'
+import { tokyoDateInputValue, tokyoDateTime } from '../lib/date'
 
-const DOW = ['日', '月', '火', '水', '木', '金', '土']
+// ホームはダイジェスト。かけらの全件は「整理」で見る。
+const RECENT_MEMO_COUNT = 3
 
 export default function Home() {
-  const { owner, oshi, dispName, todos, setScreen } = useApp()
+  const { oshi, dispName, todos, planItems, memos, setScreen } = useApp()
   const name = dispName(oshi.name)
-  const total = todos.length
-  const done = todos.filter((t) => t.done).length
-
-  const now = new Date()
-  const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(
-    now.getDate(),
-  ).padStart(2, '0')} ${DOW[now.getDay()]}曜日`
-  const greeting = owner ? `おかえり、${oshi.callname || 'きみ'}。` : 'ようこそ。'
+  // 「今日やること」＝期限が今日（東京時間）のタスクだけ。完了済みもその日中は残す
+  // （チェックした手応えが残り、解除して戻せる）。
+  // 期限切れ・期限なし・明日以降はホームに出さない（それらは「整理」で見る）。
+  const today = tokyoDateInputValue()
+  const todayTodos = todos.filter((todo) => todo.due === today)
+  const recentMemos = memos.slice(0, RECENT_MEMO_COUNT)
 
   return (
     <div className="screen on">
-      <div className="topbar">
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{dateStr}</div>
-          <div style={{ fontFamily: "'Shippori Mincho',serif", fontSize: 16, color: 'var(--text)' }}>
-            {greeting}
-          </div>
+      <header className="v21-profile">
+        <Avatar cls="av-40" img={oshi.avatarImg} />
+        <div className="v21-profile-info">
+          <h1 className="v21-profile-name">{name}</h1>
+          <p className="v21-status">
+            <span className="v21-status-dot" aria-hidden="true" />
+            <span className="v21-status-text">ONLINE</span>
+          </p>
         </div>
-        <div className="topbar-right">
-          <OmamoriBadge />
-          <ThemeButton />
-        </div>
-      </div>
+        <OmamoriBadge />
+      </header>
+
       <div className="scroll">
-        <div className="card oshi-card" style={{ marginBottom: 20 }}>
-          <div className="oshi-row">
-            <Avatar cls="av-48" img={oshi.avatarImg} />
-            <div>
-              <div className="oshi-msg-label">{name} — 今日のひとこと</div>
-              <div className="oshi-msg-text">「今日、何かやり残してることある？ 話してみて」</div>
-            </div>
-          </div>
-          <button className="btn btn-primary btn-full" onClick={() => setScreen('chat')}>
-            {name}と話す →
+        <section className="v21-greeting" aria-label={`${name}からのひとこと`}>
+          <p className="v21-bubble">
+            おかえり、今日も一緒にいるよ。何か気になっていることがあったら、僕に教えてほしいな。
+          </p>
+          <button className="btn v21-talk-btn" onClick={() => setScreen('chat')}>
+            🎙 {name}とはなす
           </button>
-        </div>
-        <div>
-          <div className="sec-header">
-            <span className="sec-title">今日の最重要</span>
-            <span className="sec-count">{total ? `${done}/${total}` : ''}</span>
-          </div>
-          <div className="todo-list">
-            {todos.map((t) => (
-              <TodoItem key={t.id} todo={t} />
-            ))}
-          </div>
-          {total === 0 && (
-            <div className="empty" style={{ textAlign: 'center', padding: '14px 0' }}>
-              タスクは「整理」から🌙
-            </div>
-          )}
+        </section>
+
+        <div className="v21-agenda">
+          <section className="v21-section">
+            <h2 className="v21-section-title">今日やること</h2>
+            {todayTodos.length > 0 ? (
+              <div className="todo-list">
+                {todayTodos.map((todo) => (
+                  <TodoItem key={todo.id} todo={todo} variant="compact" />
+                ))}
+              </div>
+            ) : (
+              <p className="empty">タスクは「整理」から🌙</p>
+            )}
+          </section>
+
+          <section className="v21-section">
+            <h2 className="v21-section-title">今日の予定</h2>
+            {planItems.length > 0 ? (
+              <div className="plan-list">
+                {planItems.map((item, idx) => (
+                  <div className="pi" key={`${item.time}-${item.text}-${idx}`}>
+                    {item.time && (
+                      <>
+                        <span className="pi-time">{item.time}</span>
+                        <span className="v21-divider" aria-hidden="true" />
+                      </>
+                    )}
+                    <span className="v21-plan-text">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty">予定は「整理」から🌙</p>
+            )}
+          </section>
+
+          <section className="v21-section">
+            <h2 className="v21-section-title">最近のメモ</h2>
+            {recentMemos.length > 0 ? (
+              <div className="memo-list">
+                {recentMemos.map((memo) => (
+                  <div className="mi" key={memo.id}>
+                    <p className="mi-text">{memo.text}</p>
+                    <p className="mi-date">作成：{tokyoDateTime(memo.createdAt) || memo.date}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty">かけらはチャットから残せる🌙</p>
+            )}
+          </section>
         </div>
       </div>
     </div>
