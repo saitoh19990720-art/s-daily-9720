@@ -23,6 +23,9 @@ export default function App() {
   const modalOpen = todoModal.open || memoModal.open || planModal.open || fragmentDetail.open
   const backgroundBlocked = modalOpen || !obDone
   const appRef = useRef<HTMLDivElement>(null)
+  // v2.1正本（Figma home-normal）で実装済みの画面だけ、v2.1シェル（Dark navy）を適用する。
+  // 未移行画面は既存のLight/Darkトークンのまま＝見た目を壊さない。移行が進むたびここに足す。
+  const v21Shell = screen === 'home'
 
   useLayoutEffect(() => {
     const app = appRef.current
@@ -53,7 +56,11 @@ export default function App() {
   return (
     <>
       {!obDone && <Onboarding />}
-      <div ref={appRef} className="app" aria-hidden={backgroundBlocked || undefined}>
+      <div
+        ref={appRef}
+        className={`app${v21Shell ? ' app-v21' : ''}`}
+        aria-hidden={backgroundBlocked || undefined}
+      >
         <div className="screens">
           {renderScreen()}
           <TabBar />
