@@ -4,7 +4,8 @@
 import { useApp } from '../state/AppContext'
 import { Avatar, OmamoriBadge } from '../components/TopBits'
 import TodoItem from '../components/TodoItem'
-import { tokyoDateInputValue, tokyoDateTime } from '../lib/date'
+import { tokyoDateTime } from '../lib/date'
+import { useTokyoToday } from '../lib/useTokyoToday'
 
 // ホームはダイジェスト。かけらの全件は「整理」で見る。
 const RECENT_MEMO_COUNT = 3
@@ -15,7 +16,8 @@ export default function Home() {
   // 「今日やること」＝期限が今日（東京時間）のタスクだけ。完了済みもその日中は残す
   // （チェックした手応えが残り、解除して戻せる）。
   // 期限切れ・期限なし・明日以降はホームに出さない（それらは「整理」で見る）。
-  const today = tokyoDateInputValue()
+  // 日付は東京0時と画面復帰のタイミングで取り直す（開きっぱなしでも前日のまま残さない）。
+  const today = useTokyoToday()
   const todayTodos = todos.filter((todo) => todo.due === today)
   const recentMemos = memos.slice(0, RECENT_MEMO_COUNT)
 
