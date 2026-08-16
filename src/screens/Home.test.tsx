@@ -76,6 +76,7 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -128,6 +129,41 @@ describe('v2.1ホームの「今日やること」', () => {
     expect(card?.querySelector('.ti-prio')?.textContent).toBe('⚠️ 優先度: 高')
     expect(card?.querySelectorAll('.btn-icon').length).toBe(0)
     expect(card?.querySelector('.prio-dot')).toBeNull()
+  })
+
+  // 東京の日付が変わったとき、開きっぱなしのホームが前日のまま残らないこと（PR #2 P2）。
+  it('ホームを開いたまま東京の0時を越えると、今日のタスクが新しい日のものへ入れ替わる', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-16T14:50:00Z')) // 2026-08-16 23:50 JST
+    seedTodos([
+      todo('t1', '16日のタスク', '2026-08-16'),
+      todo('t2', '17日のタスク', '2026-08-17'),
+    ])
+    renderApp()
+    expect(taskTexts()).toEqual(['16日のタスク'])
+
+    act(() => {
+      vi.advanceTimersByTime(11 * 60 * 1000) // 2026-08-17 00:01 JST
+    })
+    expect(taskTexts()).toEqual(['17日のタスク'])
+  })
+
+  it('バックグラウンドから復帰したとき（visibilitychange）に今日を取り直す', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-16T03:00:00Z')) // 2026-08-16 12:00 JST
+    seedTodos([
+      todo('t1', '16日のタスク', '2026-08-16'),
+      todo('t2', '17日のタスク', '2026-08-17'),
+    ])
+    renderApp()
+    expect(taskTexts()).toEqual(['16日のタスク'])
+
+    // タイマーを進めずに日付だけ翌日へ（＝スリープ中にタイマーが遅延した状況）。
+    vi.setSystemTime(new Date('2026-08-17T03:00:00Z')) // 2026-08-17 12:00 JST
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(taskTexts()).toEqual(['17日のタスク'])
   })
 
   it('編集・削除は整理画面（既存の利用箇所）に残っている', () => {
