@@ -1,0 +1,45 @@
+/* ===== AlarmCard（Figma正本 node 152:80 / Dark基準・幅358px）=====
+   元は src/index.css の末尾にあったが、home-normal の差分と混ざらないよう
+   AlarmCard 専用ファイルへ切り出した（AlarmCard.tsx から import する）。
+   FigmaのDark値をこのカード内だけの変数として持つ。
+   グローバルトークン(--bg/--text/--accent 等)と既存画面には影響させない。
+   .btn / .toggle は index.css の定義を土台に再利用している。 */
+.alarm-card{
+  --alarm-surface:#171f2e;--alarm-border:#262e40;--alarm-border-accent:#5999e5;--alarm-info:#59b2ff;
+  --alarm-oshi-bubble:#1f2e4d;--alarm-oshi-glow:#4d8cd9;
+  --alarm-text-primary:#f2f5fa;--alarm-text-secondary:#99a6ba;--alarm-text-tertiary:#667387;--alarm-text-accent:#73b8ff;
+  --alarm-track-off:#3a4356;
+  display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:16px;
+  width:100%;max-width:358px;box-sizing:border-box;opacity:1;
+  background:var(--alarm-surface);border:1px solid var(--alarm-border);
+}
+.alarm-card--ringing{border-color:var(--alarm-border-accent);}
+.alarm-card--snoozed{border-color:var(--alarm-info);}
+/* お守りモードは他の状態より後ろ＝常に優先 */
+.alarm-card--omamori{background:var(--alarm-oshi-bubble);border-color:var(--alarm-oshi-glow);}
+.alarm-head{display:flex;align-items:center;gap:8px;width:100%;overflow:hidden;}
+.alarm-status{font-size:12px;line-height:18px;font-weight:500;white-space:nowrap;color:var(--alarm-text-secondary);}
+.alarm-status--accent{color:var(--alarm-text-accent);}
+.alarm-status--info{color:var(--alarm-info);}
+.alarm-status--oshi{color:var(--alarm-oshi-glow);}
+.alarm-status--muted{color:var(--alarm-text-tertiary);}
+.alarm-check{font-size:14px;line-height:normal;font-weight:500;color:var(--alarm-text-tertiary);}
+.alarm-spacer{flex:1 0 0;min-width:0;height:1px;}
+.alarm-time{font-size:18px;line-height:26px;font-weight:500;white-space:nowrap;color:var(--alarm-text-primary);}
+.alarm-time--accent{color:var(--alarm-text-accent);}
+.alarm-time--oshi{color:var(--alarm-oshi-glow);}
+.alarm-body{font-size:15px;line-height:22px;font-weight:400;width:100%;color:var(--alarm-text-primary);overflow-wrap:break-word;}
+.alarm-body--muted{color:var(--alarm-text-secondary);}
+.alarm-support{font-size:12px;line-height:18px;font-weight:400;width:100%;color:var(--alarm-text-secondary);overflow-wrap:break-word;}
+.alarm-support--muted{color:var(--alarm-text-tertiary);}
+.alarm-actions{display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;}
+/* .btn を土台に再利用し、Figma差分(角丸12/16px)だけ上書きする */
+.alarm-btn{border-radius:12px;padding:10px 16px;font-size:16px;line-height:24px;font-weight:500;
+  color:var(--alarm-text-primary);background:var(--alarm-border-accent);}
+.alarm-btn--info{background:var(--alarm-info);}
+.alarm-btn--oshi{background:var(--alarm-oshi-glow);}
+.alarm-toggle-row{display:flex;align-items:center;justify-content:flex-end;width:100%;}
+/* 既存 .toggle(視覚44x26 / 当たり判定52x44) を再利用し、色だけカード内で上書き */
+.alarm-card .tg-track{background:var(--alarm-track-off);}
+.alarm-card input:checked+.tg-track{background:var(--alarm-border-accent);}
+.alarm-card--omamori input:checked+.tg-track{background:var(--alarm-oshi-glow);}

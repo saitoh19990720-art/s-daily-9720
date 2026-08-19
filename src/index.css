@@ -297,6 +297,10 @@ body:not(.is-owner) .owner-only{display:none!important;}
 .v21-talk-btn{width:100%;min-height:52px;padding:14px 32px;border-radius:100px;
   background:var(--v21-accent);color:var(--v21-on-accent);font-size:16px;font-weight:700;}
 
+/* alarm-section（Figma確定：挨拶エリア直下・今日やること直前。左右余白はHome本文と同じ24px、
+   下の余白は greeting-section と同じ20px。カード自身の見た目は AlarmCard.css のまま触らない） */
+.v21-alarm-section{padding:0 24px 20px;}
+
 /* daily-agenda（112:1782） */
 .v21-agenda{display:flex;flex-direction:column;gap:20px;padding:4px 24px 24px;}
 .v21-section{display:flex;flex-direction:column;gap:10px;min-width:0;}
@@ -342,6 +346,7 @@ body:not(.is-owner) .owner-only{display:none!important;}
 .app-v21 :focus-visible{outline-color:var(--v21-accent);}
 
 /* 狭い端末（〜359px）でも横あふれさせない */
-@media(max-width:359px){.v21-greeting,.v21-agenda{padding-left:16px;padding-right:16px;}}
+@media(max-width:359px){.v21-greeting,.v21-agenda{padding-left:16px;padding-right:16px;}
+  .v21-alarm-section{padding-left:16px;padding-right:16px;}}
 @media(min-width:768px){.app-v21 .bnav{min-height:76px;padding-bottom:10px;}}
 

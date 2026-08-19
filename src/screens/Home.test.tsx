@@ -203,3 +203,43 @@ describe('v2.1ホームの「今日やること」', () => {
     expect(card?.querySelector('.ti-prio')).toBeNull()
   })
 })
+
+// Figma正本 node 170:2（home-normal — alarm scheduled）に対応。
+describe('v2.1ホームのアラームカード', () => {
+  const alarmToggle = () =>
+    container!.querySelector<HTMLInputElement>('.v21-alarm-section input[type="checkbox"]')!
+
+  it('挨拶エリアの直下、「今日やること」の直前に置かれる', () => {
+    renderApp()
+    const order = [...container!.querySelectorAll('.scroll > *')].map((el) => el.className)
+    expect(order).toEqual(['v21-greeting', 'v21-alarm-section', 'v21-agenda'])
+    // 「今日やること」より前に出ていること
+    const sections = container!.querySelector('.scroll')!
+    const alarmIdx = [...sections.children].findIndex((el) => el.className === 'v21-alarm-section')
+    const agendaIdx = [...sections.children].findIndex((el) => el.className === 'v21-agenda')
+    expect(alarmIdx).toBeLessThan(agendaIdx)
+  })
+
+  it('scheduled状態でFigma既定の時刻・ラベルを出す', () => {
+    renderApp()
+    const card = container!.querySelector('.v21-alarm-section .alarm-card')!
+    expect(card.getAttribute('data-state')).toBe('scheduled')
+    expect(card.querySelector('.alarm-time')?.textContent).toBe('22:50')
+    expect(card.textContent).toContain('夜タスクを始める')
+    expect(card.querySelector('.alarm-status')?.textContent).toBe('予定')
+  })
+
+  it('ON/OFFを切り替えると保存され、開き直しても保持される', () => {
+    renderApp()
+    expect(alarmToggle().checked).toBe(true)
+
+    act(() => alarmToggle().click())
+    expect(alarmToggle().checked).toBe(false)
+
+    // 開き直す（localStorageから読み直す）
+    act(() => root?.unmount())
+    container?.remove()
+    renderApp()
+    expect(alarmToggle().checked).toBe(false)
+  })
+})
