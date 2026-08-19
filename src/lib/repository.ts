@@ -2,6 +2,7 @@
 // 画面/状態コードは localStorage を直接触らない（しずくの実装方針）。
 // Vanilla版からの既存キーは変更せず引き継ぎ、③-B-1の新規データだけ名前空間付きキーへ保存する。
 import type {
+  Alarm,
   ChatMsg,
   HealthLog,
   Memo,
@@ -28,6 +29,8 @@ const KEYS = {
   // ③-B-1で追加。名前空間+バージョン付き＝既存キー(oshi-os-owner/theme/oshi/…)と衝突しない。
   todos: 'oshi-os:v1:todos',
   fragments: 'oshi-os:v1:fragments',
+  // 夜タスクのアラーム（1件のみ）。記録データではなく設定扱いなので RECORD_KEYS には入れない。
+  alarm: 'oshi-os:v1:alarm',
 } as const
 
 // 保存形式のスキーマ版（ルート = { schemaVersion, records: [...] }）。
@@ -43,6 +46,13 @@ const RECORD_KEYS: readonly string[] = [
   KEYS.pstart,
   KEYS.pin,
 ]
+
+// アラームの初期値。Figma正本（node 152:80 / State=Scheduled, Mode=Normal）の既定表示に合わせる。
+export const DEFAULT_ALARM: Alarm = {
+  time: '22:50',
+  enabled: true,
+  label: '夜タスクを始める',
+}
 
 export const DEFAULT_OSHI: Oshi = {
   name: '推し',
@@ -86,6 +96,10 @@ export interface Repository {
   getPlanTier(): PlanTier
   setPlanTier(t: PlanTier): boolean
 
+  // 夜タスクのアラーム（v0.1は1件・保存できないときは false）。
+  getAlarm(): Alarm
+  setAlarm(a: Alarm): boolean
+
   // ③-B-1で追加：タスク／会話のかけらの永続化と、記録データの初期化。
   getTodos(): Todo[]
   setTodos(todos: Todo[]): boolean
@@ -117,6 +131,11 @@ function isOshi(value: unknown): value is Oshi {
     isString(value.banned) &&
     (value.avatarImg === null || isString(value.avatarImg))
   )
+}
+
+function isAlarm(value: unknown): value is Alarm {
+  if (!isRecord(value)) return false
+  return isString(value.time) && typeof value.enabled === 'boolean' && isString(value.label)
 }
 
 const PLAN_CATS: readonly PlanCat[] = ['task', 'fun', 'care', 'rest']
@@ -310,6 +329,16 @@ export class LocalStorageRepository implements Repository {
   }
   setPlanTier(t: PlanTier): boolean {
     return writeStorage(() => localStorage.setItem(KEYS.plan, t))
+  }
+
+  // 保存が壊れていても既定値へ落として画面を止めない（既知の項目だけで再構築する）。
+  getAlarm(): Alarm {
+    const value = readJSON(KEYS.alarm)
+    if (!isAlarm(value)) return DEFAULT_ALARM
+    return { time: value.time, enabled: value.enabled, label: value.label }
+  }
+  setAlarm(a: Alarm): boolean {
+    return writeStorage(() => localStorage.setItem(KEYS.alarm, JSON.stringify(a)))
   }
 
   getTodos(): Todo[] {

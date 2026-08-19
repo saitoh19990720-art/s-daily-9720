@@ -66,6 +66,15 @@ export interface HealthLog {
   period: boolean
 }
 
+// 夜タスクのアラーム。Figma正本 node 152:80（AlarmCard）に対応。
+// v0.1は「1件だけ・scheduled表示・ON/OFF」のみ。ringing / snoozed の状態遷移は持たない
+// （Figma上の設計としては確定済みだが、実装はv0.2以降）。
+export interface Alarm {
+  time: string
+  enabled: boolean
+  label: string
+}
+
 export type PlanTier = 'free' | 'once' | 'sub'
 
 export type ChatRole = 'user' | 'oshi'

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { DEFAULT_OSHI, FRAGMENT_SCHEMA_VERSION, repo } from '../lib/repository'
+import type { Alarm } from '../lib/types'
 import { DEFS, FREE_LIMITS, RESPONSES } from '../lib/constants'
 import { tokyoShortDate } from '../lib/date'
 import { sanitizeTags, tagsEqual } from '../lib/tags'
@@ -111,6 +112,9 @@ interface AppState {
   inPeriod: boolean
   startPeriod: () => void
   endPeriod: () => void
+  // アラーム（v0.1は1件・scheduled表示とON/OFFのみ）
+  alarm: Alarm
+  setAlarmEnabled: (enabled: boolean) => void
   // お守り
   omamoriOn: boolean
   setOmamori: (v: boolean) => void
@@ -226,6 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>(() => repo.getHealthLogs())
   const [periodStart, setPeriodStart] = useState<string | null>(() => repo.getPeriodStart())
   const [inPeriod, setInPeriod] = useState<boolean>(() => repo.getInPeriod())
+  const [alarm, setAlarm] = useState<Alarm>(() => repo.getAlarm())
   const [omamoriOn, setOmamoriOn] = useState<boolean>(false)
   const [planTier, setPlanTier] = useState<PlanTier>(() => repo.getPlanTier())
 
@@ -671,6 +676,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast('お疲れさま 🩵')
   }, [periodStart, showStorageFailure, showToast])
 
+  // アラームのON/OFF。保存に成功したときだけ画面へ反映する（他の保存と同じ扱い）。
+  const setAlarmEnabled = useCallback(
+    (enabled: boolean) => {
+      if (enabled === alarm.enabled) return
+      const next: Alarm = { ...alarm, enabled }
+      if (!repo.setAlarm(next)) {
+        showStorageFailure()
+        return
+      }
+      setAlarm(next)
+    },
+    [alarm, showStorageFailure],
+  )
+
   const setOmamori = useCallback(
     (v: boolean) => {
       setOmamoriOn(v)
@@ -864,6 +883,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inPeriod,
     startPeriod,
     endPeriod,
+    alarm,
+    setAlarmEnabled,
     omamoriOn,
     setOmamori,
     planTier,

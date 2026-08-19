@@ -4,6 +4,7 @@
 import { useApp } from '../state/AppContext'
 import { Avatar, OmamoriBadge } from '../components/TopBits'
 import TodoItem from '../components/TodoItem'
+import AlarmCard from '../components/AlarmCard'
 import { tokyoDateTime } from '../lib/date'
 import { useTokyoToday } from '../lib/useTokyoToday'
 
@@ -11,7 +12,7 @@ import { useTokyoToday } from '../lib/useTokyoToday'
 const RECENT_MEMO_COUNT = 3
 
 export default function Home() {
-  const { oshi, dispName, todos, planItems, memos, setScreen } = useApp()
+  const { oshi, dispName, todos, planItems, memos, alarm, setAlarmEnabled, setScreen } = useApp()
   const name = dispName(oshi.name)
   // 「今日やること」＝期限が今日（東京時間）のタスクだけ。完了済みもその日中は残す
   // （チェックした手応えが残り、解除して戻せる）。
@@ -43,6 +44,18 @@ export default function Home() {
           <button className="btn v21-talk-btn" onClick={() => setScreen('chat')}>
             🎙 {name}とはなす
           </button>
+        </section>
+
+        {/* Figma確定位置：挨拶エリア直下・「今日やること」の直前（node 170:2 / 170:84 / 170:167）。
+            v0.1は scheduled 表示と ON/OFF のみ。ringing / snoozed はv0.2以降。 */}
+        <section className="v21-alarm-section" aria-label="夜タスクのアラーム">
+          <AlarmCard
+            state="scheduled"
+            time={alarm.time}
+            title={alarm.label}
+            enabled={alarm.enabled}
+            onToggle={setAlarmEnabled}
+          />
         </section>
 
         <div className="v21-agenda">
