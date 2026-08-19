@@ -51,6 +51,7 @@ export function useTokyoToday(): string {
       schedule()
     }
 
+    sync()
     schedule()
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {

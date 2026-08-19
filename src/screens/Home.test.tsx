@@ -3,12 +3,13 @@
 // ・「今日やること」は期限が今日のタスクだけ（完了済みもその日中は残す）
 // ・ホームのタスクカードは「チェック＋本文」（編集/削除は出さない）
 // ・編集/削除の機能自体は整理画面に残っている
-import { act } from 'react'
+import { act, useLayoutEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { AppProvider } from '../state/AppContext'
 import { tokyoDateInputValue } from '../lib/date'
+import { useTokyoToday } from '../lib/useTokyoToday'
 import { TODO_SCHEMA_VERSION } from '../lib/repository'
 import type { Todo } from '../lib/types'
 
@@ -42,6 +43,23 @@ function renderApp(hash = '#/home') {
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => root?.render(<AppProvider><App /></AppProvider>))
+}
+
+// useEffectより先に実行されるlayout effectで日付を切り替え、
+// state初期化時とeffect開始時の東京日付が異なる境界を再現する。
+function TokyoTodayProbe({ effectDate }: { effectDate: Date }) {
+  const today = useTokyoToday()
+  useLayoutEffect(() => {
+    vi.setSystemTime(effectDate)
+  }, [effectDate])
+  return <output data-testid="tokyo-today">{today}</output>
+}
+
+function renderTokyoTodayProbe(effectDate: Date) {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => root?.render(<TokyoTodayProbe effectDate={effectDate} />))
 }
 
 function taskTexts(): string[] {
@@ -164,6 +182,15 @@ describe('v2.1ホームの「今日やること」', () => {
       document.dispatchEvent(new Event('visibilitychange'))
     })
     expect(taskTexts()).toEqual(['17日のタスク'])
+  })
+
+  it('初期化時からeffect開始までに東京日付が変わった場合、最初の表示から新しい日付になる', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-16T14:59:59.999Z')) // 2026-08-16 23:59:59.999 JST
+
+    renderTokyoTodayProbe(new Date('2026-08-16T15:00:00.000Z')) // 2026-08-17 00:00:00 JST
+
+    expect(container?.querySelector('[data-testid="tokyo-today"]')?.textContent).toBe('2026-08-17')
   })
 
   it('編集・削除は整理画面（既存の利用箇所）に残っている', () => {
