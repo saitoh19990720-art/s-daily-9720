@@ -33,9 +33,15 @@ GitHubでブランチ名を逆に付け替える（`main` → `checkpoint/local-
 - 取り込み済みの作業ブランチ5本の整理（削除は承認が必要）。
 - ローカルの旧ブランチ `chore/ai-bridge-handoff`（未push）は保全のため残している。
 
-## 未確認
+## 検証記録（2026-10-15、main a971b2a 相当）
 
-- React版の型チェック・テスト・ビルドは今回実行していない。
+- `npm ci`：成功（143パッケージ）。
+- `npm run typecheck`：成功。
+- `npm run build`：成功（dist/ に出力。dist/ は .gitignore 済み）。
+- テスト：13ファイル・126件すべて成功（`npx vitest run --no-file-parallelism --maxWorkers=1`）。
+- 注意：このPCは空きメモリが少なく（約0.65GB）、`npm test`（並列実行）ではワーカーがメモリ不足で落ちる。コードの不具合ではない。このPCでは上の直列実行コマンドを使う。設定ファイルへの反映は未実施（人間の判断待ち）。
+
+## 未確認
 - 他のAIや別PCに、React版の未push作業が残っていないか。
 - 各AIの自動読込、端末全体の既存自動化や停止状態は未監査。
 
